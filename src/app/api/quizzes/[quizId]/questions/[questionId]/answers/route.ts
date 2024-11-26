@@ -1,10 +1,10 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Record<string, string | string[]> }
+  { params }: { params: { quizId: string; questionId: string } }
 ) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
@@ -12,7 +12,7 @@ export async function POST(
     // Check authentication
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) {
-      return Response.json(
+      return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       )
@@ -31,7 +31,7 @@ export async function POST(
       .from('answers')
       .insert(
         answers.map(answer => ({
-          question_id: params.questionId as string,
+          question_id: params.questionId,
           answer_text: answer.answerText,
           explanation: answer.explanation,
           is_correct: answer.isCorrect,
@@ -41,16 +41,16 @@ export async function POST(
       .select()
 
     if (answersError) {
-      return Response.json(
+      return NextResponse.json(
         { error: answersError.message },
         { status: 500 }
       )
     }
 
-    return Response.json({ answers: createdAnswers })
+    return NextResponse.json({ answers: createdAnswers })
   } catch (err) {
     console.error('Error creating answers:', err)
-    return Response.json(
+    return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
