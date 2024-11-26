@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 
@@ -12,7 +12,7 @@ export async function POST(
     // Check authentication
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Unauthorized' },
         { status: 401 }
       )
@@ -40,16 +40,16 @@ export async function POST(
       .single()
 
     if (questionError) {
-      return NextResponse.json(
+      return Response.json(
         { error: questionError.message },
         { status: 500 }
       )
     }
 
-    return NextResponse.json({ question })
+    return Response.json({ question })
   } catch (err) {
     console.error('Error creating question:', err)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
