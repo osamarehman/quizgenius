@@ -2,9 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 
+type RouteParams = {
+  params: {
+    quizId: string
+    questionId: string
+  }
+}
+
 export async function POST(
   request: NextRequest,
-  context: { params: { quizId: string; questionId: string } }
+  { params }: RouteParams
 ) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
@@ -31,7 +38,7 @@ export async function POST(
       .from('answers')
       .insert(
         answers.map(answer => ({
-          question_id: context.params.questionId,
+          question_id: params.questionId,
           answer_text: answer.answerText,
           explanation: answer.explanation,
           is_correct: answer.isCorrect,
