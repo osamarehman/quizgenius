@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 
 export async function POST(
   req: Request,
-  { params }: { params: { questionId: string } }
+  { params }: { params: { quizId: string; questionId: string } }
 ) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
