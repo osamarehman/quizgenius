@@ -2,16 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 
-type RouteParams = {
-  params: {
-    quizId: string
-    questionId: string
-  }
-}
-
 export async function POST(
   request: NextRequest,
-  { params }: RouteParams
+  { params }: { params: { quizId: string; questionId: string } }
 ) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
