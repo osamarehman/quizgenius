@@ -1,4 +1,4 @@
-import { PromptTemplate, QuestionType, EducationLevel } from './types'
+import { QuestionType, EducationLevel } from './types'
 
 interface SubjectPromptConfig {
   keyTerms: string[]

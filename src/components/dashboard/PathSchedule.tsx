@@ -11,7 +11,6 @@ import {
   Clock,
   Bell,
   Plus,
-  Edit2,
   Trash2,
   CheckCircle
 } from 'lucide-react'
@@ -93,7 +92,7 @@ export function PathSchedule({
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to schedule session",
+        description: error instanceof Error ? error.message : "Failed to schedule session",
         variant: "destructive",
       })
     }
@@ -116,7 +115,7 @@ export function PathSchedule({
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to update session",
+        description: error instanceof Error ? error.message : "Failed to update session",
         variant: "destructive",
       })
     }

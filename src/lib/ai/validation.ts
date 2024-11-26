@@ -61,6 +61,51 @@ const levelValidationRules: Record<string, ValidationRule[]> = {
   ]
 }
 
+export type ValidationSeverity = 'error' | 'warning' | 'info'
+export type ValidationCategory = 'content' | 'structure' | 'accessibility' | 'language'
+
+export interface ValidationError {
+  id: string
+  message: string
+  severity: ValidationSeverity
+  category: ValidationCategory
+  passed: boolean
+  autoFix?: boolean
+  details?: string
+}
+
+export interface ValidationResult {
+  errors: ValidationError[]
+  warnings: ValidationError[]
+  info: ValidationError[]
+  all: ValidationError[]
+  isValid: boolean
+}
+
+export interface Question {
+  id: string
+  text: string
+  explanation?: string
+  answers: Answer[]
+  category?: string
+  difficulty?: string
+  type?: string
+}
+
+export interface Answer {
+  id: string
+  text: string
+  isCorrect: boolean
+  explanation?: string
+}
+
+export interface ValidationConfig {
+  checkContent?: boolean
+  checkStructure?: boolean
+  checkAccessibility?: boolean
+  checkLanguage?: boolean
+}
+
 export function validateQuestionBatch(
   questions: Question[],
   subject?: string,
@@ -151,4 +196,4 @@ export function getQuestionImprovementSuggestions(
   }
 
   return suggestions
-} 
+}

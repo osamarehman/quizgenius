@@ -1,10 +1,20 @@
+'use client'
+
 import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar'
+import { usePathname } from 'next/navigation'
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const pathname = usePathname()
+  
+  // Skip dashboard layout for admin routes
+  if (pathname?.includes('/admin')) {
+    return <>{children}</>
+  }
+
   return (
     <div className="flex h-screen">
       <aside className="w-64 border-r bg-background">
@@ -20,4 +30,4 @@ export default function DashboardLayout({
       </main>
     </div>
   )
-} 
+}

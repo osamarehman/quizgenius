@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -23,11 +22,8 @@ interface ValidationUIProps {
 
 export function ValidationUI({ 
   validationResults, 
-  subject,
-  educationSystem,
   onFix 
 }: ValidationUIProps) {
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
 
   const totalErrors = validationResults.reduce((sum, result) => sum + result.errors.length, 0)
   const totalWarnings = validationResults.reduce((sum, result) => sum + result.warnings.length, 0)

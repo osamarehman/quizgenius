@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
@@ -32,11 +32,7 @@ export default function QuizOverviewPage({ params }: { params: { id: string } })
   const supabase = createClientComponentClient()
   const router = useRouter()
 
-  useEffect(() => {
-    fetchQuizData()
-  }, [params.id])
-
-  const fetchQuizData = async () => {
+  const fetchQuizData = useCallback(async () => {
     try {
       const { data: quizData, error: quizError } = await supabase
         .from('quizzes')
@@ -75,7 +71,11 @@ export default function QuizOverviewPage({ params }: { params: { id: string } })
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [params.id, supabase])
+
+  useEffect(() => {
+    fetchQuizData()
+  }, [fetchQuizData])
 
   if (isLoading) {
     return <LoadingSpinner />
@@ -145,7 +145,7 @@ export default function QuizOverviewPage({ params }: { params: { id: string } })
           <ul className="list-disc list-inside text-muted-foreground space-y-1">
             <li>Make sure you have a stable internet connection</li>
             <li>You have {quiz.time_limit} minutes to complete the quiz</li>
-            <li>You can't pause the quiz once started</li>
+            <li>You can&apos;t pause the quiz once started</li>
             <li>Each question can only be answered once</li>
           </ul>
         </div>

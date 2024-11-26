@@ -9,13 +9,10 @@ import { useToast } from "@/hooks/use-toast"
 import { useAchievements } from "@/contexts/AchievementContext"
 import {
   Users,
-  MessageSquare,
-  Share2,
   Calendar,
   Plus,
   Video,
   UserPlus,
-  Settings
 } from 'lucide-react'
 
 interface GroupMember {
@@ -42,7 +39,6 @@ interface PathStudyGroupProps {
   members: GroupMember[]
   sessions: StudySession[]
   onCreateSession: (session: Omit<StudySession, 'id'>) => Promise<void>
-  onInviteMember: (email: string) => Promise<void>
   onJoinSession: (sessionId: string) => Promise<void>
 }
 
@@ -52,10 +48,8 @@ export function PathStudyGroup({
   members,
   sessions,
   onCreateSession,
-  onInviteMember,
   onJoinSession
-}: PathStudyGroupProps) {
-  const [inviteEmail, setInviteEmail] = useState('')
+}: Omit<PathStudyGroupProps, 'onInviteMember'>) {
   const [showCreateSession, setShowCreateSession] = useState(false)
   const [newSession, setNewSession] = useState({
     title: '',
@@ -65,34 +59,6 @@ export function PathStudyGroup({
   })
   const { toast } = useToast()
   const { checkAchievement } = useAchievements()
-
-  const handleInviteMember = async () => {
-    if (!inviteEmail) return
-
-    try {
-      await onInviteMember(inviteEmail)
-      
-      // Check for social achievements
-      await checkAchievement('GROUP_INTERACTION', {
-        pathId,
-        groupId,
-        action: 'invite',
-        memberCount: members.length + 1
-      })
-
-      toast({
-        title: "Success",
-        description: "Invitation sent successfully",
-      })
-      setInviteEmail('')
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to send invitation",
-        variant: "destructive",
-      })
-    }
-  }
 
   const handleCreateSession = async () => {
     try {
@@ -117,7 +83,7 @@ export function PathStudyGroup({
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to create session",
+        description: error instanceof Error ? error.message : "Failed to create session",
         variant: "destructive",
       })
     }

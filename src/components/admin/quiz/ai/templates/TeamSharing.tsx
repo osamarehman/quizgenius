@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -30,7 +31,7 @@ interface TeamSharingProps {
   onUpdate: (members: TeamMember[]) => void
 }
 
-export function TeamSharing({ templateId, members, onUpdate }: TeamSharingProps) {
+export function TeamSharing({  members, onUpdate }: TeamSharingProps) {
   const [email, setEmail] = useState('')
   const [selectedPermission, setSelectedPermission] = useState<Permission>('view')
   const [isInviting, setIsInviting] = useState(false)
@@ -54,7 +55,8 @@ export function TeamSharing({ templateId, members, onUpdate }: TeamSharingProps)
         title: "Success",
         description: "Team member added successfully",
       })
-    } catch (error) {
+    } catch (inviteError) {
+      console.error('Failed to add team member:', inviteError)
       toast({
         title: "Error",
         description: "Failed to add team member",
@@ -138,10 +140,12 @@ export function TeamSharing({ templateId, members, onUpdate }: TeamSharingProps)
               <div className="flex items-center gap-4">
                 <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
                   {member.avatar ? (
-                    <img
+                    <Image
                       src={member.avatar}
                       alt={member.email}
-                      className="w-8 h-8 rounded-full"
+                      width={32}
+                      height={32}
+                      className="rounded-full"
                     />
                   ) : (
                     <Users className="h-4 w-4 text-muted-foreground" />

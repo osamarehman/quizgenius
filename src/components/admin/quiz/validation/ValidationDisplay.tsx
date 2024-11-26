@@ -15,7 +15,6 @@ import {
 } from 'lucide-react'
 import { 
   ValidationResult, 
-  ValidationError, 
   ValidationCategory,
   ValidationSeverity 
 } from '@/lib/ai/types'

@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge"
 import {
   Users,
   Trophy,
-  Star,
   Medal,
   Crown,
   Activity,
@@ -36,7 +35,6 @@ interface PathCommunityProps {
 }
 
 export function PathCommunity({
-  pathId,
   totalEnrolled,
   averageCompletion,
   leaderboard,

@@ -1,21 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Plus, Save, Trash2, Eye } from 'lucide-react'
-import { usePromptTemplates, PromptTemplate } from '@/lib/ai/promptTemplates/store'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
+import { usePromptTemplates, PromptTemplate } from '@/lib/ai/promptTemplates/store'
+import { Plus, Save, Trash2, Eye } from 'lucide-react'
 
 interface PromptTemplateManagerProps {
   category: PromptTemplate['category']
@@ -28,7 +19,7 @@ export function PromptTemplateManager({
   context = '',
   onSelect
 }: PromptTemplateManagerProps) {
-  const { templates, addTemplate, updateTemplate, deleteTemplate, getTemplatesByCategory } = usePromptTemplates()
+  const { addTemplate, updateTemplate, deleteTemplate, getTemplatesByCategory } = usePromptTemplates()
   const [selectedTemplate, setSelectedTemplate] = useState<PromptTemplate | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [previewMode, setPreviewMode] = useState(false)
@@ -70,7 +61,7 @@ export function PromptTemplateManager({
   }
 
   return (
-    <Card className="p-6">
+    <div className="p-6">
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h3 className="font-medium">Prompt Templates</h3>
@@ -84,7 +75,7 @@ export function PromptTemplateManager({
           {/* Template List */}
           <div className="space-y-2">
             {categoryTemplates.map((template) => (
-              <Card
+              <div
                 key={template.id}
                 className={`p-4 cursor-pointer hover:bg-muted/50 ${
                   selectedTemplate?.id === template.id ? 'border-primary' : ''
@@ -111,13 +102,13 @@ export function PromptTemplateManager({
                     </Button>
                   )}
                 </div>
-              </Card>
+              </div>
             ))}
           </div>
 
           {/* Template Editor/Preview */}
           {selectedTemplate && (
-            <Card className="p-4 space-y-4">
+            <div className="p-4 space-y-4">
               <div className="flex justify-between items-center">
                 <div className="space-y-1">
                   {isEditing ? (
@@ -186,10 +177,10 @@ export function PromptTemplateManager({
               >
                 Use Template
               </Button>
-            </Card>
+            </div>
           )}
         </div>
       </div>
-    </Card>
+    </div>
   )
 } 

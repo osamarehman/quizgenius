@@ -78,8 +78,9 @@ export const useQuizStore = create<QuizState>((set, get) => ({
 
       if (error) throw error;
       set({ quizzes: data, loading: false });
-    } catch (error) {
+    } catch (err) {
+      console.error('Failed to fetch quizzes:', err);
       set({ error: 'Failed to fetch quizzes', loading: false });
     }
   }
-})); 
+}));

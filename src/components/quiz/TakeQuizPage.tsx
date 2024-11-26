@@ -1,8 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { LoadingSpinner } from '@/components/ui/loading'
@@ -34,6 +33,19 @@ interface Quiz {
   questions: Question[]
 }
 
+interface QuizResults {
+  score: number
+  timeSpent: number
+  correctAnswers: number
+  questionFeedback: Array<{
+    questionText: string
+    isCorrect: boolean
+    userAnswer: string
+    correctAnswer: string
+    explanation: string
+  }>
+}
+
 export function TakeQuizPage({ quizId }: { quizId: string }) {
   const [quiz, setQuiz] = useState<Quiz | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -41,38 +53,16 @@ export function TakeQuizPage({ quizId }: { quizId: string }) {
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null)
   const [startTime] = useState(Date.now())
   const [isComplete, setIsComplete] = useState(false)
-  const [quizResults, setQuizResults] = useState<any>(null)
+  const [quizResults, setQuizResults] = useState<QuizResults | null>(null)
   const [showConfirmSubmit, setShowConfirmSubmit] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   
-  const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientComponentClient()
 
-  useEffect(() => {
-    loadQuiz()
-  }, [quizId])
-
-  useEffect(() => {
-    if (quiz?.time_limit) {
-      const timer = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - startTime) / 1000)
-        const remaining = quiz.time_limit * 60 - elapsed
-        setTimeRemaining(remaining)
-
-        if (remaining <= 0) {
-          clearInterval(timer)
-          handleSubmit()
-        }
-      }, 1000)
-
-      return () => clearInterval(timer)
-    }
-  }, [quiz])
-
-  const loadQuiz = async () => {
+  const loadQuiz = useCallback(async () => {
     try {
-      const { data: quiz, error } = await supabase
+      const { data: quizData, error } = await supabase
         .from('quizzes')
         .select(`
           id,
@@ -96,7 +86,7 @@ export function TakeQuizPage({ quizId }: { quizId: string }) {
         .single()
 
       if (error) throw error
-      setQuiz(quiz)
+      setQuiz(quizData)
     } catch (error) {
       console.error('Error loading quiz:', error)
       toast({
@@ -107,16 +97,20 @@ export function TakeQuizPage({ quizId }: { quizId: string }) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [quizId, toast, supabase])
 
-  const handleAnswerSelect = (questionId: string, answerId: string) => {
+  useEffect(() => {
+    loadQuiz()
+  }, [loadQuiz])
+
+  const handleAnswerSelect = useCallback((questionId: string, answerId: string) => {
     setSelectedAnswers(prev => ({
       ...prev,
       [questionId]: answerId
     }))
-  }
+  }, [])
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (!quiz || isSubmitting) return
 
     // If not showing confirmation dialog and not all questions are answered
@@ -199,7 +193,24 @@ export function TakeQuizPage({ quizId }: { quizId: string }) {
     } finally {
       setIsSubmitting(false)
     }
-  }
+  }, [quiz, selectedAnswers, startTime, supabase, toast, isSubmitting, showConfirmSubmit])
+
+  useEffect(() => {
+    if (quiz?.time_limit) {
+      const timer = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000)
+        const remaining = quiz.time_limit * 60 - elapsed
+        setTimeRemaining(remaining)
+
+        if (remaining <= 0) {
+          clearInterval(timer)
+          handleSubmit()
+        }
+      }, 1000)
+
+      return () => clearInterval(timer)
+    }
+  }, [quiz, startTime, handleSubmit])
 
   if (isLoading) {
     return <LoadingSpinner />
@@ -248,6 +259,33 @@ export function TakeQuizPage({ quizId }: { quizId: string }) {
         value={(Object.keys(selectedAnswers).length / quiz.questions.length) * 100} 
         className="w-full"
       />
+
+      <div className="space-y-6">
+        {quiz.questions.map((question, index) => (
+          <Card key={question.id} className="p-6">
+            <div className="space-y-4">
+              <h3 className="font-medium">
+                {index + 1}. {question.question_text}
+              </h3>
+              <div className="space-y-2">
+                {question.answers.map(answer => (
+                  <div
+                    key={answer.id}
+                    className={`p-3 rounded-lg border cursor-pointer hover:bg-accent ${
+                      selectedAnswers[question.id] === answer.id
+                        ? 'bg-accent border-primary'
+                        : 'border-input'
+                    }`}
+                    onClick={() => handleAnswerSelect(question.id, answer.id)}
+                  >
+                    {answer.answer_text}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
 
       <QuizOverview
         title={quiz.title}

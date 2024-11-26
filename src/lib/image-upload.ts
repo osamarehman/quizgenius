@@ -24,7 +24,7 @@ export async function uploadQuestionImage(file: File) {
     const filePath = `question-images/${fileName}`
 
     // Upload file to Supabase Storage
-    const { data, error } = await supabase.storage
+    const {  error } = await supabase.storage
       .from('quiz-assets')
       .upload(filePath, file)
 

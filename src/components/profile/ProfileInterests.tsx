@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Search } from 'lucide-react'
 
 const SUBJECTS = [
@@ -63,7 +62,7 @@ export function ProfileInterests() {
 
       {selectedSubjects.length === 0 && (
         <p className="text-center text-muted-foreground">
-          Select at least one subject you're interested in
+          Select at least one subject you&apos;re interested in
         </p>
       )}
     </div>

@@ -48,7 +48,8 @@ export async function POST(
     }
 
     return NextResponse.json({ answers: createdAnswers })
-  } catch (error) {
+  } catch (err) {
+    console.error('Error creating answers:', err);
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }

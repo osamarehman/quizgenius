@@ -1,11 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from 'next/navigation'
 import { learningPathService } from '@/lib/services/learningPathService'
@@ -13,8 +12,6 @@ import { LearningPathProgress } from '@/components/dashboard/LearningPathProgres
 import { useUser } from '@/lib/stores/useUser'
 import { LoadingSpinner } from '@/components/ui/loading'
 import {
-  BookOpen,
-  Trophy,
   Clock,
   Users,
   ArrowLeft,
@@ -50,35 +47,35 @@ interface PathDetails {
 export default function PathDetailsPage() {
   const params = useParams()
   const pathId = params?.id as string
-  const [pathData, setPathData] = useState<any>(null)
+  const [pathData, setPathData] = useState<PathDetails | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const { profile } = useUser()
   const { toast } = useToast()
   const router = useRouter()
 
-  useEffect(() => {
-    if (pathId) {
-      loadPathDetails()
-    }
-  }, [pathId])
-
-  const loadPathDetails = async () => {
+  const loadPathDetails = useCallback(async () => {
     try {
       const details = await learningPathService.getPathDetails(pathId)
       setPathData(details)
-    } catch (error: any) {
-      console.error('Error loading path details:', error)
+    } catch (err) {
+      console.error('Error loading path details:', err)
       toast({
         title: "Error",
-        description: error.message || "Failed to load path details",
+        description: err instanceof Error ? err.message : "Failed to load path details",
         variant: "destructive",
       })
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [pathId, toast])
+  useEffect(() => {
+    if (pathId) {
+      loadPathDetails()
+    }
+  }, [pathId, loadPathDetails])
 
-  const handleEnrollment = async () => {
+
+  const handleEnrollment = useCallback(async () => {
     if (!profile) {
       router.push('/auth')
       return
@@ -91,14 +88,14 @@ export default function PathDetailsPage() {
         description: "Successfully enrolled in learning path",
       })
       loadPathDetails()
-    } catch (error) {
+    } catch (err) {
       toast({
         title: "Error",
-        description: "Failed to enroll in path",
+        description: `Failed to enroll in path: ${err instanceof Error ? err.message : 'Unknown error'}`,
         variant: "destructive",
       })
     }
-  }
+  }, [profile, pathId, toast, router, loadPathDetails])
 
   if (isLoading) {
     return <LoadingSpinner />

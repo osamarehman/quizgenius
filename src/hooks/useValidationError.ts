@@ -20,11 +20,14 @@ interface UseValidationErrorOptions {
 }
 
 export function useValidationError(options: UseValidationErrorOptions = {}) {
+  const { toast } = useToast()
   const [errorState, setErrorState] = useState<ValidationErrorState>({
     hasError: false,
     errors: []
   })
-  const { toast } = useToast()
+
+  // Memoize options to prevent unnecessary re-renders
+  const memoizedOptions = useCallback(() => options, [options])()
 
   const handleValidationError = useCallback((
     result: ValidationResult,
@@ -45,7 +48,7 @@ export function useValidationError(options: UseValidationErrorOptions = {}) {
         severity
       })
 
-      options.onError?.(filteredErrors)
+      memoizedOptions.onError?.(filteredErrors)
 
       // Show toast for critical errors
       if (severity === 'error' || !severity) {
@@ -58,15 +61,15 @@ export function useValidationError(options: UseValidationErrorOptions = {}) {
         })
       }
     }
-  }, [options.onError, toast])
+  }, [memoizedOptions, toast])
 
   const clearErrors = useCallback(() => {
     setErrorState({
       hasError: false,
       errors: []
     })
-    options.onResolve?.()
-  }, [options.onResolve])
+    memoizedOptions.onResolve?.()
+  }, [memoizedOptions])
 
   const getErrorsByCategory = useCallback((category: ValidationCategory) => {
     return errorState.errors.filter(error => error.category === category)

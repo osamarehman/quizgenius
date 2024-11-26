@@ -10,7 +10,6 @@ import {
   BookOpen,
   Clock,
   Trophy,
-  Target,
   Brain,
   TrendingUp,
   Calendar,
@@ -68,7 +67,7 @@ export function PathSummary({
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to start study session",
+        description: error instanceof Error ? error.message : "Failed to start study session",
         variant: "destructive",
       })
     }

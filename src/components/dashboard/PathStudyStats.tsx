@@ -7,13 +7,13 @@ import { Progress } from "@/components/ui/progress"
 import {
   LineChart,
   Line,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer
+  ResponsiveContainer,
+  BarChart,
+  Bar
 } from 'recharts'
 import {
   Clock,
@@ -21,7 +21,6 @@ import {
   Brain,
   Target,
   TrendingUp,
-  BarChart2
 } from 'lucide-react'
 
 interface StudySession {
@@ -33,7 +32,6 @@ interface StudySession {
 }
 
 interface PathStudyStatsProps {
-  pathId: string
   studySessions: StudySession[]
   totalTime: number
   averageScore: number
@@ -42,7 +40,6 @@ interface PathStudyStatsProps {
 }
 
 export function PathStudyStats({
-  pathId,
   studySessions,
   totalTime,
   averageScore,

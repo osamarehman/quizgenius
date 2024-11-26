@@ -33,7 +33,8 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
         title: "Success",
         description: "Template updated successfully",
       })
-    } catch (error) {
+    } catch (updateError) {
+      console.error('Failed to update template:', updateError)
       toast({
         title: "Error",
         description: "Failed to update template",

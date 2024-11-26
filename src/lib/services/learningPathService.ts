@@ -1,240 +1,371 @@
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { Database } from '@/types/supabase';
 
-export interface LearningPath {
-  id: string
-  title: string
-  description: string
-  category: {
-    id: string
-    name: string
-  }
-  difficulty: 'beginner' | 'intermediate' | 'advanced'
-  estimatedHours: number
-  totalStages: number
-  enrolledCount: number
-  rating?: number
-  userProgress?: {
-    completedStages: number
-    lastAccessed?: string
-  }
+interface PathStage {
+  id: string;
+  title: string;
+  description: string;
+  type: string;
+  order_number: number;
+  duration: number;
+  content_url: string;
+  requirements: string[];
+  rewards: {
+    xp: number;
+    badges?: string[];
+  };
 }
 
-export interface PathStage {
-  id: string
-  title: string
-  description: string
-  type: string
-  status: 'locked' | 'available' | 'completed'
-  progress: number
-  requirements: Array<{ type: string; value: string }>
-  rewards: Array<{ type: string; value: string }>
+interface UserProgressData extends DatabaseRecord {
+  status: 'in_progress' | 'completed';
+  xp_earned: number;
+  progress: number;
+  started_at: string;
+  completed_at: string | null;
+  stage: StageData;
 }
 
-interface PathStageDetails {
-  id: string
-  title: string
-  description: string
-  type: 'video' | 'reading' | 'quiz' | 'challenge' | 'practice'
-  orderNumber: number
-  duration: number
-  contentUrl: string | null
-  requirements: Array<{ type: string; value: number }>
-  rewards: Array<{ type: string; value: number }>
-  status: 'locked' | 'available' | 'completed'
-  progress: number
+interface PathAnalytics {
+  totalUsers: number;
+  averageProgress: number;
+  completionRate: number;
+  averageTimeSpent: number;
 }
+
+interface UserProfile {
+  id: string;
+  email?: string;
+  full_name?: string;
+  avatar_url?: string;
+  preferences?: {
+    notifications?: boolean;
+    theme?: string;
+  };
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type ProgressStatus = 'not_started' | 'in_progress' | 'completed';
 
 interface PathProgress {
-  completedStages: number
-  totalStages: number
-  currentStage?: PathStage
-  nextStage?: PathStage
-  lastAccessed?: string
-  totalXP: number
+  userId: string;
+  pathId: string;
+  completedContent: string[];
+  currentContent: string;
+  score: number;
+  startedAt: Date;
+  lastAccessedAt: Date;
+  completedAt?: Date;
+  metadata?: Record<string, unknown>;
 }
 
-class LearningPathService {
-  private supabase = createClientComponentClient()
+interface LeaderboardEntry {
+  userId: string;
+  score: number;
+  completedStages: number;
+  lastActive: string;
+}
 
-  async getAvailablePaths(): Promise<LearningPath[]> {
-    try {
-      console.log('Fetching available paths...')
-      
-      // Get current user's profile
-      const { data: { session } } = await this.supabase.auth.getSession()
-      let enrolledPaths: string[] = []
+interface LeaderboardData extends DatabaseRecord {
+  user_id: string;
+  score: number;
+  completed_stages: number;
+  total_time: string;
+  user?: {
+    name: string;
+  };
+}
 
-      if (session?.user?.id) {
-        // Get enrolled paths from profile
-        const { data: profile } = await this.supabase
-          .from('profiles')
-          .select('enrolled_paths')
-          .eq('id', session.user.id)
-          .single()
+interface PathInsight {
+  timeSpent: number;
+  completedStages: number;
+  averageScore: number;
+  lastActivity: string;
+  strengths: string[];
+  weaknesses: string[];
+}
 
-        enrolledPaths = profile?.enrolled_paths || []
-        console.log('User enrolled paths:', enrolledPaths)
-      }
+interface StudyPlan {
+  recommendedStages: string[];
+  estimatedTime: number;
+  focusAreas: string[];
+  schedule: {
+    date: string;
+    content: string[];
+  }[];
+}
 
-      // Get all published paths with their relationships
-      const { data: paths, error } = await this.supabase
-        .from('learning_paths')
-        .select(`
-          id,
-          title,
-          description,
-          difficulty,
-          estimated_hours,
-          enrolled_count,
-          rating,
-          category:categories (
-            id,
-            name
-          ),
-          stages:path_stages (count)
-        `)
-        .eq('is_published', true)
-        .order('created_at', { ascending: false })
+interface DatabaseRecord {
+  id: string;
+  created_at: string;
+  [key: string]: unknown;
+}
 
-      if (error) {
-        console.error('Error fetching paths:', error)
-        throw error
-      }
+interface StageData extends DatabaseRecord {
+  id: string;
+  title: string;
+  description: string;
+  type: string;
+  order_number: number;
+  duration: number;
+  content_url: string;
+  requirements: string[];
+  rewards: {
+    xp: number;
+    badges?: string[];
+  };
+  status?: string;
+  progress?: number;
+  unlocked_at?: string;
+  completed_at?: string | null;
+}
 
-      console.log('Fetched paths:', paths)
+interface PathData extends DatabaseRecord {
+  id: string;
+  title: string;
+  description: string;
+  stages: StageData[];
+  category: {
+    id: string;
+    name: string;
+  };
+  difficulty: string;
+  estimated_hours: number;
+  enrolled_count: number;
+  rating: number;
+  user_progress?: Array<{
+    status: string;
+    last_accessed: string;
+  }>;
+}
 
-      // Transform the paths data
-      return paths.map(path => ({
-        id: path.id,
-        title: path.title,
-        description: path.description,
-        category: {
-          id: path.category?.id,
-          name: path.category?.name || 'Uncategorized'
-        },
-        difficulty: path.difficulty,
-        estimatedHours: path.estimated_hours,
-        totalStages: path.stages?.[0]?.count || 0,
-        enrolledCount: path.enrolled_count || 0,
-        rating: path.rating,
-        // Add user progress if enrolled
-        userProgress: enrolledPaths.includes(path.id) ? {
-          completedStages: 0, // You can fetch actual progress if needed
-          lastAccessed: null
-        } : undefined
-      }))
-    } catch (error) {
-      console.error('Error in getAvailablePaths:', error)
-      return []
+interface PathInsightData extends DatabaseRecord {
+  time_spent: number;
+  completed_stages: number;
+  average_score: number;
+  last_activity: string;
+  strengths: string[];
+  weaknesses: string[];
+}
+
+interface StudyPlanData extends DatabaseRecord {
+  recommended_stages: string[];
+  estimated_time: number;
+  focus_areas: string[];
+  schedule: {
+    date: string;
+    content: string[];
+  }[];
+}
+
+interface UserPathProgress {
+  path_id: string;
+  status: 'in_progress' | 'completed';
+  progress: number;
+  last_accessed: string;
+}
+
+interface CategoryData {
+  id: string;
+  name: string;
+  description?: string;
+  created_at: string;
+}
+
+interface StageProgressData {
+  id: string;
+  title: string;
+  description: string;
+  type: string;
+  order_number: number;
+  duration: number;
+  content_url: string;
+  requirements: string[];
+  rewards: {
+    xp: number;
+    badges?: string[];
+  };
+  user_progress?: Array<{
+    status: string;
+    progress: number;
+  }>;
+}
+
+interface UserPathProgressWithLearningPath extends UserPathProgress {
+  learning_path: {
+    category_id: string;
+  };
+  xp_earned: number;
+}
+
+interface ExtendedUserProgress extends UserPathProgress {
+  xp_earned: number;
+}
+
+export class LearningPathService {
+  private supabase = createClientComponentClient<Database>()
+
+  private handleError(error: Error): DatabaseError {
+    return {
+      name: error.name,
+      message: error.message,
+      code: 'UNKNOWN_ERROR',
+      stack: error.stack
     }
   }
 
-  private getMockPaths(): LearningPath[] {
-    return [
-      {
-        id: '123e4567-e89b-12d3-a456-426614174000',
-        title: 'JavaScript Fundamentals',
-        description: 'Learn the basics of JavaScript',
-        category: { id: '1', name: 'JavaScript' },
-        difficulty: 'beginner',
-        estimatedHours: 20,
-        totalStages: 10,
-        enrolledCount: 150,
-        rating: 4.5
-      },
-      // ... other mock paths
-    ]
+  async getAvailablePaths(
+    userId: string,
+    filter?: PathFilter,
+    sort?: PathSortOptions,
+    pagination?: PathPaginationOptions
+  ): Promise<DatabaseResponse<LearningPath[]>> {
+    try {
+      let query = this.supabase
+        .from('learning_paths')
+        .select('*')
+
+      if (filter) {
+        if (filter.subject?.length) {
+          query = query.in('subject', filter.subject)
+        }
+        if (filter.difficulty?.length) {
+          query = query.in('difficulty', filter.difficulty)
+        }
+        if (filter.type?.length) {
+          query = query.in('type', filter.type)
+        }
+        if (filter.searchTerm) {
+          query = query.ilike('title', `%${filter.searchTerm}%`)
+        }
+      }
+
+      if (sort) {
+        query = query.order(sort.field, { ascending: sort.direction === 'asc' })
+      }
+
+      if (pagination) {
+        const { page, limit } = pagination
+        query = query
+          .range((page - 1) * limit, page * limit - 1)
+          .limit(limit)
+      }
+
+      const { data, error } = await query
+
+      if (error) {
+        throw error
+      }
+
+      return { data: data || [], error: null }
+    } catch (error) {
+      console.error('Error getting available paths:', error)
+      return { 
+        data: null,
+        error: this.handleError(error instanceof Error ? error : new Error('Unknown error'))
+      }
+    }
   }
 
   async enrollInPath(userId: string, pathId: string): Promise<void> {
     try {
-      console.log('Starting enrollment process...', { userId, pathId })
-
-      // Check if already enrolled using profiles
-      const isAlreadyEnrolled = await this.isEnrolled(userId, pathId)
+      const isAlreadyEnrolled = await this.isEnrolled(userId, pathId);
       if (isAlreadyEnrolled) {
-        console.log('User already enrolled')
-        return
+        console.log('User already enrolled');
+        return;
       }
 
-      // Get user's profile
       const { data: profile, error: profileError } = await this.supabase
         .from('profiles')
         .select('enrolled_paths')
         .eq('id', userId)
-        .single()
+        .single();
 
       if (profileError) {
-        throw new Error('Failed to fetch user profile')
+        throw new Error('Failed to fetch user profile');
       }
 
-      // Update enrolled_paths in profile
       const { error: updateError } = await this.supabase
         .from('profiles')
         .update({
-          enrolled_paths: [...(profile?.enrolled_paths || []), pathId]
+          enrolled_paths: [...(profile?.enrolled_paths || []), pathId],
         })
-        .eq('id', userId)
+        .eq('id', userId);
 
       if (updateError) {
-        throw new Error('Failed to update profile')
+        throw new Error('Failed to update profile');
       }
 
-      // Get path stages
-      const { data: stages, error: stagesError } = await this.supabase
-        .from('path_stages')
-        .select('id, order_number')
-        .eq('path_id', pathId)
-        .order('order_number')
-
-      if (stagesError) {
-        throw new Error('Failed to fetch path stages')
-      }
-
-      // Create initial progress entries
-      const now = new Date().toISOString()
-      for (const stage of stages || []) {
-        await this.supabase
-          .from('user_path_progress')
-          .insert({
-            user_id: userId,
-            path_id: pathId,
-            stage_id: stage.id,
-            status: stage.order_number === 1 ? 'available' : 'locked',
-            progress: 0,
-            started_at: stage.order_number === 1 ? now : null,
-            last_accessed: stage.order_number === 1 ? now : null
-          })
-      }
-
-      // Increment enrolled count
-      await this.supabase.rpc('increment_enrolled_count', { p_path_id: pathId })
-
-      console.log('Successfully enrolled user')
+      await this.initializeStageProgress(userId, pathId);
+      await this.incrementEnrollmentCount(pathId);
     } catch (error) {
-      console.error('Error in enrollInPath:', error)
-      throw error
+      console.error('Error in enrollInPath:', error);
+      throw error;
+    }
+  }
+
+  private async initializeStageProgress(userId: string, pathId: string): Promise<void> {
+    const { data: stages, error: stagesError } = await this.supabase
+      .from('path_stages')
+      .select('id, order_number')
+      .eq('path_id', pathId)
+      .order('order_number');
+
+    if (stagesError) {
+      throw new Error('Failed to fetch path stages');
+    }
+
+    const now = new Date().toISOString();
+    for (const stage of stages || []) {
+      await this.supabase
+        .from('user_path_progress')
+        .insert({
+          user_id: userId,
+          path_id: pathId,
+          stage_id: stage.id,
+          status: stage.order_number === 1 ? 'available' : 'locked',
+          progress: 0,
+          started_at: stage.order_number === 1 ? now : null,
+          last_accessed: stage.order_number === 1 ? now : null,
+        });
+    }
+  }
+
+  private async incrementEnrollmentCount(pathId: string): Promise<void> {
+    await this.supabase.rpc('increment_enrolled_count', { p_path_id: pathId });
+  }
+
+  async isEnrolled(userId: string, pathId: string): Promise<boolean> {
+    try {
+      const { data: profile } = await this.supabase
+        .from('profiles')
+        .select('enrolled_paths')
+        .eq('id', userId)
+        .single();
+
+      return profile?.enrolled_paths?.includes(pathId) || false;
+    } catch (error) {
+      console.error('Error checking enrollment:', error);
+      return false;
     }
   }
 
   async getEnrolledPaths(userId: string): Promise<LearningPath[]> {
     try {
-      // Get enrolled paths from profile
       const { data: profile, error: profileError } = await this.supabase
         .from('profiles')
         .select('enrolled_paths')
         .eq('id', userId)
-        .single()
+        .single();
 
       if (profileError) {
-        throw new Error('Failed to fetch enrolled paths')
+        throw new Error('Failed to fetch enrolled paths');
       }
 
       if (!profile?.enrolled_paths?.length) {
-        return []
+        return [];
       }
 
-      // Get path details for enrolled paths
       const { data: paths, error: pathsError } = await this.supabase
         .from('learning_paths')
         .select(`
@@ -247,86 +378,587 @@ class LearningPathService {
           user_progress:user_path_progress(
             status,
             progress,
-            last_accessed
+            last_accessed,
+            completed_at,
+            xp_earned
           )
         `)
-        .in('id', profile.enrolled_paths)
+        .in('id', profile.enrolled_paths);
 
       if (pathsError) {
-        throw new Error('Failed to fetch path details')
+        throw new Error('Failed to fetch path details');
       }
 
-      return this.transformPaths(paths || [])
+      return paths || [];
     } catch (error) {
-      console.error('Error getting enrolled paths:', error)
-      return []
+      console.error('Error getting enrolled paths:', error);
+      return [];
     }
   }
 
-  // Add method to get user's enrolled paths from profile
   async getUserEnrolledPaths(userId: string): Promise<string[]> {
     try {
       const { data: profile, error } = await this.supabase
         .from('profiles')
         .select('enrolled_paths')
         .eq('id', userId)
-        .single()
+        .single();
 
-      if (error) throw error
-      return profile?.enrolled_paths || []
+      if (error) throw error;
+      return profile?.enrolled_paths || [];
     } catch (error) {
-      console.error('Error getting enrolled paths:', error)
-      return []
+      console.error('Error getting enrolled paths:', error);
+      return [];
     }
   }
 
-  // Add method to check if user is enrolled in a path
   async isUserEnrolled(userId: string, pathId: string): Promise<boolean> {
     try {
-      const enrolledPaths = await this.getUserEnrolledPaths(userId)
-      return enrolledPaths.includes(pathId)
+      const enrolledPaths = await this.getUserEnrolledPaths(userId);
+      return enrolledPaths.includes(pathId);
     } catch (error) {
-      console.error('Error checking enrollment:', error)
-      return false
+      console.error('Error checking enrollment:', error);
+      return false;
     }
-  }
-
-  private isValidUUID(uuid: string): boolean {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-    return uuidRegex.test(uuid)
-  }
-
-  private generateUUID(): string {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0
-      const v = c === 'x' ? r : (r & 0x3 | 0x8)
-      return v.toString(16)
-    })
   }
 
   async getPathDetails(pathId: string): Promise<{
     path: LearningPath;
     stages: PathStage[];
-    userProgress: any;
+    userProgress: UserProgressData[] | null;
   }> {
     try {
-      console.log('Fetching path details:', pathId)
+      console.log('Fetching path details:', pathId);
 
-      // Get current user's profile
-      const { data: { session } } = await this.supabase.auth.getSession()
-      let userProfile = null
+      const { data: { session } } = await this.supabase.auth.getSession();
+      let userProfile: UserProfile | null = null;
 
       if (session?.user?.id) {
         const { data: profile } = await this.supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
-          .single()
+          .single();
 
-        userProfile = profile
+        userProfile = profile;
       }
 
-      // Get path details with all relationships
+      const { data: path, error: pathError } = await this.supabase
+        .from('learning_paths')
+        .select(`
+          *,
+          stages:path_stages(*),
+          category:categories(*),
+          user_progress:user_path_progress(*)
+        `)
+        .eq('id', pathId)
+        .single();
+
+      if (pathError) {
+        console.error('Error fetching path:', pathError);
+        throw pathError;
+      }
+
+      const pathData = path as PathData;
+      const isEnrolled = userProfile?.enrolled_paths?.includes(pathId);
+
+      return {
+        path: {
+          id: pathData.id,
+          title: pathData.title,
+          description: pathData.description,
+          category: {
+            id: pathData.category?.id,
+            name: pathData.category?.name || 'Uncategorized',
+          },
+          difficulty: pathData.difficulty,
+          estimatedHours: pathData.estimated_hours,
+          totalStages: pathData.stages?.length || 0,
+          enrolledCount: pathData.enrolled_count || 0,
+          rating: pathData.rating,
+          userProgress: isEnrolled
+            ? {
+                completedStages: pathData.user_progress?.filter(
+                  (p) => p.status === 'completed'
+                ).length || 0,
+                lastAccessed: pathData.user_progress?.[0]?.last_accessed,
+              }
+            : undefined,
+        },
+        stages: pathData.stages || [],
+        userProgress: isEnrolled ? pathData.user_progress : null,
+      };
+    } catch (error) {
+      console.error('Error in getPathDetails:', error);
+      throw error;
+    }
+  }
+
+  async getUserProgress(userId: string, pathId: string): Promise<{
+    currentLevel: number;
+    totalXP: number;
+    completedStages: number;
+    stages: PathStage[];
+  }> {
+    try {
+      const { data: progressData, error: progressError } = await this.supabase
+        .from('user_path_progress')
+        .select(`
+          *,
+          stage:path_stages(*)
+        `)
+        .eq('user_id', userId)
+        .eq('path_id', pathId)
+        .order('stage.order_number', { ascending: true });
+
+      if (progressError) throw progressError;
+
+      const totalXP = progressData.reduce(
+        (sum: number, p: UserProgressData) => sum + (p.xp_earned || 0),
+        0
+      );
+      const completedStages = progressData.filter(
+        (p: UserProgressData) => p.status === 'completed'
+      ).length;
+
+      return {
+        currentLevel: Math.floor(totalXP / 1000) + 1,
+        totalXP,
+        completedStages,
+        stages: progressData.map((p: UserProgressData) => ({
+          ...p.stage,
+          status: p.status,
+          progress: p.progress,
+          unlocked_at: p.started_at,
+          completed_at: p.completed_at,
+        })),
+      };
+    } catch (error) {
+      console.error('Error fetching user progress:', error);
+      throw error;
+    }
+  }
+
+  async updateStageProgress(
+    userId: string,
+    pathId: string,
+    stageId: string,
+    progress: number,
+    xpEarned: number = 0,
+    status: 'in_progress' | 'completed' = progress === 100 ? 'completed' : 'in_progress'
+  ): Promise<void> {
+    try {
+      const { error } = await this.supabase
+        .from('user_path_progress')
+        .upsert({
+          user_id: userId,
+          path_id: pathId,
+          stage_id: stageId,
+          progress,
+          xp_earned: xpEarned,
+          status,
+          completed_at: status === 'completed' ? new Date().toISOString() : null,
+          last_accessed: new Date().toISOString(),
+        });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error updating stage progress:', error);
+      throw error;
+    }
+  }
+
+  async ratePath(
+    userId: string,
+    pathId: string,
+    rating: number,
+    comment?: string
+  ): Promise<void> {
+    try {
+      const { error } = await this.supabase
+        .from('path_ratings')
+        .upsert({
+          user_id: userId,
+          path_id: pathId,
+          rating,
+          comment,
+        });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error rating path:', error);
+      throw error;
+    }
+  }
+
+  async getRecommendedPaths(currentUser: string): Promise<LearningPath[]> {
+    try {
+      const { data: userProgress } = await this.supabase
+        .from('user_path_progress')
+        .select('path_id')
+        .eq('user_id', currentUser);
+
+      const completedPathIds = userProgress?.map((p: UserPathProgress) => p.path_id) || [];
+
+      const { data: paths } = await this.supabase
+        .from('learning_paths')
+        .select(`
+          *,
+          category:categories(name),
+          stages:path_stages(count),
+          rating:path_ratings(avg)
+        `)
+        .eq('is_published', true)
+        .not('id', 'in', `(${completedPathIds.join(',')})`)
+        .order('rating', { ascending: false })
+        .limit(5);
+
+      return paths || [];
+    } catch (error) {
+      console.error('Error fetching recommended paths:', error);
+      return [];
+    }
+  }
+
+  async getPopularPaths(): Promise<LearningPath[]> {
+    try {
+      const { data: paths } = await this.supabase
+        .from('learning_paths')
+        .select(`
+          *,
+          category:categories(name),
+          stages:path_stages(count),
+          enrolled_users:user_path_progress(count)
+        `)
+        .eq('is_published', true)
+        .order('enrolled_count', { ascending: false })
+        .limit(10);
+
+      return paths || [];
+    } catch (error) {
+      console.error('Error fetching popular paths:', error);
+      return [];
+    }
+  }
+
+  async searchPaths(query: string, filters?: {
+    difficulty?: string;
+    category?: string;
+    duration?: 'short' | 'medium' | 'long';
+  }): Promise<LearningPath[]> {
+    try {
+      let queryBuilder = this.supabase
+        .from('learning_paths')
+        .select(`
+          *,
+          category:categories(name),
+          stages:path_stages(count)
+        `)
+        .eq('is_published', true)
+        .ilike('title', `%${query}%`);
+
+      if (filters?.difficulty) {
+        queryBuilder = queryBuilder.eq('difficulty', filters.difficulty);
+      }
+
+      if (filters?.category) {
+        queryBuilder = queryBuilder.eq('category.name', filters.category);
+      }
+
+      if (filters?.duration) {
+        switch (filters.duration) {
+          case 'short':
+            queryBuilder = queryBuilder.lte('estimated_hours', 5);
+            break;
+          case 'medium':
+            queryBuilder = queryBuilder.and(`estimated_hours.gt.5,estimated_hours.lte.20`);
+            break;
+          case 'long':
+            queryBuilder = queryBuilder.gt('estimated_hours', 20);
+            break;
+        }
+      }
+
+      const { data: paths } = await queryBuilder;
+
+      return paths || [];
+    } catch (error) {
+      console.error('Error searching paths:', error);
+      return [];
+    }
+  }
+
+  async getPathStages(pathId: string): Promise<PathStage[]> {
+    try {
+      const { data: stages, error } = await this.supabase
+        .from('path_stages')
+        .select(`
+          *,
+          user_progress:user_path_progress(
+            status,
+            progress,
+            completed_at
+          )
+        `)
+        .eq('path_id', pathId)
+        .order('order_number');
+
+      if (error) throw error;
+
+      return stages.map((stage: StageProgressData) => ({
+        id: stage.id,
+        title: stage.title,
+        description: stage.description,
+        type: stage.type,
+        orderNumber: stage.order_number,
+        duration: stage.duration,
+        contentUrl: stage.content_url,
+        requirements: stage.requirements,
+        rewards: stage.rewards,
+        status: stage.user_progress?.[0]?.status || 'locked',
+        progress: stage.user_progress?.[0]?.progress || 0,
+      }));
+    } catch (error) {
+      console.error('Error fetching path stages:', error);
+      return [];
+    }
+  }
+
+  async markContentComplete(contentId: string, userId: string): Promise<void> {
+    try {
+      const { error } = await this.supabase
+        .from('user_path_progress')
+        .upsert({
+          user_id: userId,
+          stage_id: contentId,
+          status: 'completed',
+          progress: 100,
+          completed_at: new Date().toISOString(),
+        });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error marking content complete:', error);
+      throw error;
+    }
+  }
+
+  async getPathProgress(pathId: string, userId: string): Promise<PathProgress[]> {
+    try {
+      const { data: progress, error } = await this.supabase
+        .from('user_path_progress')
+        .select('*')
+        .eq('path_id', pathId)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      return (progress || []).map((p: UserPathProgress) => ({
+        status: p.status as ProgressStatus,
+        progress: p.progress,
+        lastUpdated: p.last_accessed,
+      }));
+    } catch (error) {
+      console.error('Error getting path progress:', error);
+      throw error;
+    }
+  }
+
+  async getRecommendedPathsForUser(userId: string): Promise<LearningPath[]> {
+    try {
+      const { data: userProgress } = await this.supabase
+        .from('user_path_progress')
+        .select(`
+          path_id,
+          learning_path:learning_paths(
+            category_id
+          )
+        `)
+        .eq('user_id', userId)
+        .eq('status', 'completed');
+
+      const completedPathIds = userProgress?.map((p: UserPathProgress) => p.path_id) || [];
+      const categoryIds = userProgress?.map((p: UserPathProgressWithLearningPath) => p.learning_path.category_id).filter(Boolean) || [];
+
+      const { data: recommendedPaths } = await this.supabase
+        .from('learning_paths')
+        .select(`
+          *,
+          category:categories(name),
+          stages:path_stages(count),
+          rating
+        `)
+        .eq('is_published', true)
+        .in('category_id', categoryIds)
+        .not('id', 'in', `(${completedPathIds.join(',')})`)
+        .order('rating', { ascending: false })
+        .limit(5);
+
+      return recommendedPaths || [];
+    } catch (error) {
+      console.error('Error getting recommended paths:', error);
+      return [];
+    }
+  }
+
+  async getPathStats(pathId: string): Promise<PathAnalytics> {
+    try {
+      const { data: stats, error } = await this.supabase
+        .from('path_stats')
+        .select('*')
+        .eq('path_id', pathId)
+        .single();
+
+      if (error) throw error;
+
+      return {
+        enrolledCount: stats.enrolled_count || 0,
+        averageRating: stats.average_rating || 0,
+        completionRate: stats.completion_rate || 0,
+        averageTimeToComplete: stats.average_time_to_complete || 0,
+      };
+    } catch (error) {
+      console.error('Error fetching path stats:', error);
+      return {
+        enrolledCount: 0,
+        averageRating: 0,
+        completionRate: 0,
+        averageTimeToComplete: 0,
+      };
+    }
+  }
+
+  async getPathAnalytics(pathId: string): Promise<PathAnalytics> {
+    try {
+      const { data: analytics, error } = await this.supabase
+        .from('path_analytics')
+        .select('*')
+        .eq('path_id', pathId)
+        .single();
+
+      if (error) throw error;
+
+      return {
+        dailyEnrollments: analytics.daily_enrollments || [],
+        completionTrends: analytics.completion_trends || [],
+        averageTimePerStage: analytics.average_time_per_stage || [],
+        userFeedback: analytics.user_feedback || [],
+      };
+    } catch (error) {
+      console.error('Error fetching path analytics:', error);
+      return {
+        dailyEnrollments: [],
+        completionTrends: [],
+        averageTimePerStage: [],
+        userFeedback: [],
+      };
+    }
+  }
+
+  async getLeaderboard(
+    pathId: string,
+    timeRange: 'week' | 'month' | 'all' = 'week'
+  ): Promise<LeaderboardEntry[]> {
+    try {
+      const { data: leaderboard, error } = await this.supabase
+        .from('path_leaderboard')
+        .select(`
+          user_id,
+          user:profiles(name),
+          score,
+          completed_stages,
+          total_time
+        `)
+        .eq('path_id', pathId)
+        .eq('time_range', timeRange)
+        .order('score', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+
+      return (leaderboard || []).map((entry: LeaderboardData) => ({
+        userId: entry.user_id,
+        score: entry.score,
+        completedStages: entry.completed_stages,
+        lastActive: entry.total_time,
+      }));
+    } catch (error) {
+      console.error('Error fetching leaderboard:', error);
+      return [];
+    }
+  }
+
+  async getUserPathInsights(userId: string, pathId: string): Promise<PathInsight> {
+    try {
+      const { data: insights, error } = await this.supabase
+        .from('user_path_insights')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('path_id', pathId)
+        .single();
+
+      if (error) throw error;
+
+      const data = insights as PathInsightData;
+      return {
+        timeSpent: data.time_spent || 0,
+        completedStages: data.completed_stages || 0,
+        averageScore: data.average_score || 0,
+        lastActivity: data.last_activity || '',
+        strengths: data.strengths || [],
+        weaknesses: data.weaknesses || [],
+      };
+    } catch (error) {
+      console.error('Error fetching user path insights:', error);
+      return {
+        timeSpent: 0,
+        completedStages: 0,
+        averageScore: 0,
+        lastActivity: '',
+        strengths: [],
+        weaknesses: [],
+      };
+    }
+  }
+
+  async generateStudyPlan(
+    userId: string,
+    pathId: string,
+  ): Promise<StudyPlan> {
+    try {
+      const { data: plan, error } = await this.supabase
+        .from('study_plans')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('path_id', pathId)
+        .single();
+
+      if (error) throw error;
+
+      const data = plan as StudyPlanData;
+      return {
+        recommendedStages: data.recommended_stages || [],
+        estimatedTime: data.estimated_time || 0,
+        focusAreas: data.focus_areas || [],
+        schedule: data.schedule || [],
+      };
+    } catch (error) {
+      console.error('Error generating study plan:', error);
+      return {
+        recommendedStages: [],
+        estimatedTime: 0,
+        focusAreas: [],
+        schedule: [],
+      };
+    }
+  }
+
+  async getPathWithStages(pathId: string): Promise<{
+    path: LearningPath;
+    stages: PathStage[];
+    userProgress: UserProgressData[] | null;
+  }> {
+    try {
       const { data: path, error: pathError } = await this.supabase
         .from('learning_paths')
         .select(`
@@ -355,15 +987,46 @@ class LearningPathService {
           )
         `)
         .eq('id', pathId)
-        .single()
+        .single();
 
-      if (pathError) {
-        console.error('Error fetching path:', pathError)
-        throw pathError
-      }
+      if (pathError) throw pathError;
 
-      // Check if user is enrolled using profiles
-      const isEnrolled = userProfile?.enrolled_paths?.includes(pathId)
+      const transformedStages = (path.stages || []).map((stage: StageProgressData) => ({
+        id: stage.id,
+        title: stage.title,
+        description: stage.description,
+        type: stage.type,
+        orderNumber: stage.order_number,
+        duration: stage.duration,
+        contentUrl: stage.content_url,
+        requirements: stage.requirements,
+        rewards: stage.rewards,
+        status: this.calculateStageStatus(stage, path.user_progress || []),
+        progress: this.calculateStageProgress(stage, path.user_progress || []),
+      }));
+
+      const userProgress = path.user_progress?.length
+        ? {
+            completedStages: path.user_progress.filter(
+              (p: ExtendedUserProgress) => p.status === 'completed'
+            ).length || 0,
+            totalXP: path.user_progress.reduce(
+              (sum: number, p: ExtendedUserProgress) => sum + (p.xp_earned || 0),
+              0
+            ),
+            currentLevel: Math.floor(
+              path.user_progress.reduce(
+                (sum: number, p: ExtendedUserProgress) => sum + (p.xp_earned || 0),
+                0
+              ) / 1000
+            ) + 1,
+            lastAccessed: path.user_progress.sort(
+              (a: ExtendedUserProgress, b: ExtendedUserProgress) =>
+                new Date(b.last_accessed || 0).getTime() -
+                new Date(a.last_accessed || 0).getTime()
+            )[0]?.last_accessed,
+          }
+        : null;
 
       return {
         path: {
@@ -372,582 +1035,44 @@ class LearningPathService {
           description: path.description,
           category: {
             id: path.category?.id,
-            name: path.category?.name || 'Uncategorized'
+            name: path.category?.name || 'Uncategorized',
           },
           difficulty: path.difficulty,
           estimatedHours: path.estimated_hours,
           totalStages: path.stages?.length || 0,
           enrolledCount: path.enrolled_count || 0,
           rating: path.rating,
-          userProgress: isEnrolled ? {
-            completedStages: path.user_progress?.filter(p => p.status === 'completed').length || 0,
-            lastAccessed: path.user_progress?.[0]?.last_accessed
-          } : undefined
+          userProgress: userProgress,
         },
-        stages: path.stages || [],
-        userProgress: isEnrolled ? path.user_progress : null
-      }
+        stages: transformedStages,
+        userProgress,
+      };
     } catch (error) {
-      console.error('Error in getPathDetails:', error)
-      throw error
+      console.error('Error in getPathWithStages:', error);
+      throw error;
     }
   }
 
-  async getUserProgress(userId: string, pathId: string): Promise<{
-    currentLevel: number
-    totalXP: number
-    completedStages: number
-    stages: PathStage[]
-  }> {
-    try {
-      const { data: progressData, error: progressError } = await this.supabase
-        .from('user_path_progress')
-        .select(`
-          *,
-          stage:path_stages(*)
-        `)
-        .eq('user_id', userId)
-        .eq('path_id', pathId)
-        .order('stage.order_number', { ascending: true })
-
-      if (progressError) throw progressError
-
-      const totalXP = progressData.reduce((sum, p) => sum + (p.xp_earned || 0), 0)
-      const completedStages = progressData.filter(p => p.status === 'completed').length
-
-      return {
-        currentLevel: Math.floor(totalXP / 1000) + 1,
-        totalXP,
-        completedStages,
-        stages: progressData.map(p => ({
-          ...p.stage,
-          status: p.status,
-          progress: p.progress,
-          unlocked_at: p.started_at,
-          completed_at: p.completed_at
-        }))
-      }
-    } catch (error) {
-      console.error('Error fetching user progress:', error)
-      throw error
-    }
+  private calculateStageStatus(stage: StageProgressData, userProgress: UserProgressData[]): 'locked' | 'available' | 'completed' {
+    const stageProgress = userProgress.find((p: UserProgressData) => p.stage_id === stage.id);
+    if (!stageProgress) return 'locked';
+    return stageProgress.status;
   }
 
-  async updateStageProgress(
-    userId: string,
-    pathId: string,
-    stageId: string,
-    progress: number,
-    xpEarned: number = 0,
-    status: 'in_progress' | 'completed' = progress === 100 ? 'completed' : 'in_progress'
-  ): Promise<void> {
-    try {
-      const { error } = await this.supabase
-        .from('user_path_progress')
-        .upsert({
-          user_id: userId,
-          path_id: pathId,
-          stage_id: stageId,
-          progress,
-          xp_earned: xpEarned,
-          status,
-          completed_at: status === 'completed' ? new Date().toISOString() : null,
-          last_accessed: new Date().toISOString()
-        })
-
-      if (error) throw error
-    } catch (error) {
-      console.error('Error updating stage progress:', error)
-      throw error
-    }
-  }
-
-  async ratePath(
-    userId: string,
-    pathId: string,
-    rating: number,
-    comment?: string
-  ): Promise<void> {
-    try {
-      const { error } = await this.supabase
-        .from('path_ratings')
-        .upsert({
-          user_id: userId,
-          path_id: pathId,
-          rating,
-          comment
-        })
-
-      if (error) throw error
-    } catch (error) {
-      console.error('Error rating path:', error)
-      throw error
-    }
-  }
-
-  async getRecommendedPaths(userId: string): Promise<LearningPath[]> {
-    try {
-      const { data: userProgress } = await this.supabase
-        .from('user_path_progress')
-        .select('path_id')
-        .eq('user_id', userId)
-
-      const completedPathIds = userProgress?.map(p => p.path_id) || []
-
-      const { data: paths } = await this.supabase
-        .from('learning_paths')
-        .select(`
-          *,
-          category:categories(name),
-          stages:path_stages(count),
-          rating:path_ratings(avg)
-        `)
-        .eq('is_published', true)
-        .not('id', 'in', `(${completedPathIds.join(',')})`)
-        .order('rating', { ascending: false })
-        .limit(5)
-
-      return this.transformPaths(paths || [])
-    } catch (error) {
-      console.error('Error fetching recommended paths:', error)
-      return []
-    }
-  }
-
-  async getPopularPaths(): Promise<LearningPath[]> {
-    try {
-      const { data: paths } = await this.supabase
-        .from('learning_paths')
-        .select(`
-          *,
-          category:categories(name),
-          stages:path_stages(count),
-          enrolled_users:user_path_progress(count)
-        `)
-        .eq('is_published', true)
-        .order('enrolled_count', { ascending: false })
-        .limit(10)
-
-      return this.transformPaths(paths || [])
-    } catch (error) {
-      console.error('Error fetching popular paths:', error)
-      return []
-    }
-  }
-
-  async searchPaths(query: string, filters?: {
-    difficulty?: string
-    category?: string
-    duration?: 'short' | 'medium' | 'long'
-  }): Promise<LearningPath[]> {
-    try {
-      let queryBuilder = this.supabase
-        .from('learning_paths')
-        .select(`
-          *,
-          category:categories(name),
-          stages:path_stages(count)
-        `)
-        .eq('is_published', true)
-        .ilike('title', `%${query}%`)
-
-      if (filters?.difficulty) {
-        queryBuilder = queryBuilder.eq('difficulty', filters.difficulty)
-      }
-
-      if (filters?.category) {
-        queryBuilder = queryBuilder.eq('category.name', filters.category)
-      }
-
-      if (filters?.duration) {
-        switch (filters.duration) {
-          case 'short':
-            queryBuilder = queryBuilder.lte('estimated_hours', 5)
-            break
-          case 'medium':
-            queryBuilder = queryBuilder.and(`estimated_hours.gt.5,estimated_hours.lte.20`)
-            break
-          case 'long':
-            queryBuilder = queryBuilder.gt('estimated_hours', 20)
-            break
-        }
-      }
-
-      const { data: paths } = await queryBuilder
-
-      return this.transformPaths(paths || [])
-    } catch (error) {
-      console.error('Error searching paths:', error)
-      return []
-    }
-  }
-
-  async getPathStages(pathId: string, userId: string): Promise<PathStage[]> {
-    try {
-      const { data: stages, error } = await this.supabase
-        .from('path_stages')
-        .select(`
-          *,
-          user_progress:user_path_progress(
-            status,
-            progress,
-            completed_at
-          )
-        `)
-        .eq('path_id', pathId)
-        .order('order_number')
-
-      if (error) throw error
-
-      return stages.map(stage => ({
-        id: stage.id,
-        title: stage.title,
-        description: stage.description,
-        type: stage.type,
-        orderNumber: stage.order_number,
-        duration: stage.duration,
-        contentUrl: stage.content_url,
-        requirements: stage.requirements,
-        rewards: stage.rewards,
-        status: stage.user_progress?.[0]?.status || 'locked',
-        progress: stage.user_progress?.[0]?.progress || 0
-      }))
-    } catch (error) {
-      console.error('Error fetching path stages:', error)
-      return []
-    }
-  }
-
-  async markContentComplete(contentId: string, userId: string): Promise<void> {
-    try {
-      const { error } = await this.supabase
-        .from('user_path_progress')
-        .upsert({
-          user_id: userId,
-          stage_id: contentId,
-          status: 'completed',
-          progress: 100,
-          completed_at: new Date().toISOString()
-        })
-
-      if (error) throw error
-    } catch (error) {
-      console.error('Error marking content complete:', error)
-      throw error
-    }
-  }
-
-  private transformPaths(paths: any[]): LearningPath[] {
-    return paths.map(path => ({
-      id: path.id,
-      title: path.title,
-      description: path.description,
-      category: {
-        name: path.category?.[0]?.name || 'Uncategorized'
-      },
-      difficulty: path.difficulty,
-      estimatedHours: path.estimated_hours,
-      totalStages: path.stages?.[0]?.count || 0,
-      enrolledCount: path.enrolled_count || 0,
-      rating: path.rating,
-      userProgress: path.user_progress?.[0] || null
-    }))
-  }
-
-  async getRecommendedPathsForUser(userId: string): Promise<LearningPath[]> {
-    try {
-      // Get user's completed paths and preferred categories
-      const { data: userProgress } = await this.supabase
-        .from('user_path_progress')
-        .select(`
-          path_id,
-          learning_path:learning_paths(
-            category_id
-          )
-        `)
-        .eq('user_id', userId)
-        .eq('status', 'completed')
-
-      const completedPathIds = userProgress?.map(p => p.path_id) || []
-      const categoryIds = userProgress?.map(p => p.learning_path.category_id).filter(Boolean) || []
-
-      // Get paths in similar categories that user hasn't completed
-      const { data: recommendedPaths } = await this.supabase
-        .from('learning_paths')
-        .select(`
-          *,
-          category:categories(name),
-          stages:path_stages(count),
-          rating
-        `)
-        .eq('is_published', true)
-        .in('category_id', categoryIds)
-        .not('id', 'in', `(${completedPathIds.join(',')})`)
-        .order('rating', { ascending: false })
-        .limit(5)
-
-      return this.transformPaths(recommendedPaths || [])
-    } catch (error) {
-      console.error('Error getting recommended paths:', error)
-      return []
-    }
-  }
-
-  async getPathProgress(userId: string, pathId: string): Promise<PathProgress> {
-    try {
-      const { data: progress } = await this.supabase
-        .from('user_path_progress')
-        .select(`
-          *,
-          stage:path_stages(*)
-        `)
-        .eq('user_id', userId)
-        .eq('path_id', pathId)
-        .order('stage.order_number')
-
-      const completedStages = progress?.filter(p => p.status === 'completed').length || 0
-      const totalStages = progress?.length || 0
-      const currentStage = progress?.find(p => p.status === 'in_progress')?.stage
-      const nextStage = progress?.find(p => p.status === 'locked')?.stage
-      const lastAccessed = progress?.sort((a, b) => 
-        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-      )[0]?.updated_at
-
-      const totalXP = progress?.reduce((sum, p) => sum + (p.xp_earned || 0), 0) || 0
-
-      return {
-        completedStages,
-        totalStages,
-        currentStage,
-        nextStage,
-        lastAccessed,
-        totalXP
-      }
-    } catch (error) {
-      console.error('Error getting path progress:', error)
-      throw error
-    }
-  }
-
-  async getPathStats(pathId: string): Promise<{
-    enrolledCount: number
-    averageRating: number
-    completionRate: number
-    averageTimeToComplete: number
-  }> {
-    try {
-      const { data: stats } = await this.supabase
-        .rpc('get_path_stats', { path_id: pathId })
-
-      return {
-        enrolledCount: stats?.enrolled_count || 0,
-        averageRating: stats?.average_rating || 0,
-        completionRate: stats?.completion_rate || 0,
-        averageTimeToComplete: stats?.average_time_to_complete || 0
-      }
-    } catch (error) {
-      console.error('Error getting path stats:', error)
-      throw error
-    }
-  }
-
-  async getPathAnalytics(pathId: string): Promise<{
-    dailyEnrollments: { date: string; count: number }[]
-    completionTrends: { date: string; count: number }[]
-    averageTimePerStage: { stageId: string; avgTime: number }[]
-    userFeedback: { rating: number; count: number }[]
-  }> {
-    try {
-      const { data: analytics } = await this.supabase
-        .rpc('get_path_analytics', { path_id: pathId })
-
-      return analytics || {
-        dailyEnrollments: [],
-        completionTrends: [],
-        averageTimePerStage: [],
-        userFeedback: []
-      }
-    } catch (error) {
-      console.error('Error getting path analytics:', error)
-      throw error
-    }
-  }
-
-  async getLeaderboard(pathId: string, timeRange: 'week' | 'month' | 'all' = 'week'): Promise<{
-    userId: string
-    userName: string
-    score: number
-    completedStages: number
-    totalTime: number
-  }[]> {
-    try {
-      const { data: leaderboard } = await this.supabase
-        .rpc('get_path_leaderboard', { 
-          path_id: pathId,
-          time_range: timeRange
-        })
-
-      return leaderboard || []
-    } catch (error) {
-      console.error('Error getting leaderboard:', error)
-      throw error
-    }
-  }
-
-  async getUserPathInsights(userId: string, pathId: string): Promise<{
-    strengths: string[]
-    weaknesses: string[]
-    recommendedStages: string[]
-    estimatedCompletion: string
-  }> {
-    try {
-      const { data: insights } = await this.supabase
-        .rpc('get_user_path_insights', {
-          user_id: userId,
-          path_id: pathId
-        })
-
-      return insights || {
-        strengths: [],
-        weaknesses: [],
-        recommendedStages: [],
-        estimatedCompletion: ''
-      }
-    } catch (error) {
-      console.error('Error getting user insights:', error)
-      throw error
-    }
-  }
-
-  async generateStudyPlan(userId: string, pathId: string, preferences: {
-    availableHours: number
-    daysPerWeek: number
-    preferredTime: 'morning' | 'afternoon' | 'evening'
-  }): Promise<{
-    schedule: {
-      day: string
-      stages: string[]
-      duration: number
-    }[]
-    estimatedCompletion: string
-    weeklyGoals: string[]
-  }> {
-    try {
-      const { data: plan } = await this.supabase
-        .rpc('generate_study_plan', {
-          user_id: userId,
-          path_id: pathId,
-          preferences: preferences
-        })
-
-      return plan || {
-        schedule: [],
-        estimatedCompletion: '',
-        weeklyGoals: []
-      }
-    } catch (error) {
-      console.error('Error generating study plan:', error)
-      throw error
-    }
-  }
-
-  async getPathWithStages(pathId: string, userId: string): Promise<{
-    path: LearningPath
-    stages: PathStageDetails[]
-    userProgress: {
-      completedStages: number
-      totalXP: number
-      currentLevel: number
-      lastAccessed?: string
-    } | null
-  }> {
-    try {
-      // Get path details with stages
-      const { data: path, error: pathError } = await this.supabase
-        .from('learning_paths')
-        .select(`
-          *,
-          category:categories(name),
-          stages:path_stages(
-            id,
-            title,
-            description,
-            type,
-            order_number,
-            duration,
-            content_url,
-            requirements,
-            rewards
-          ),
-          user_progress:user_path_progress(
-            stage_id,
-            status,
-            progress,
-            xp_earned,
-            last_accessed
-          )
-        `)
-        .eq('id', pathId)
-        .single()
-
-      if (pathError) throw pathError
-
-      // Transform stages data
-      const stages = path.stages.map((stage: any) => ({
-        id: stage.id,
-        title: stage.title,
-        description: stage.description,
-        type: stage.type,
-        orderNumber: stage.order_number,
-        duration: stage.duration,
-        contentUrl: stage.content_url,
-        requirements: stage.requirements,
-        rewards: stage.rewards,
-        status: this.calculateStageStatus(stage, path.user_progress),
-        progress: this.calculateStageProgress(stage, path.user_progress)
-      }))
-
-      // Calculate user progress
-      const userProgress = path.user_progress?.length ? {
-        completedStages: path.user_progress.filter((p: any) => p.status === 'completed').length,
-        totalXP: path.user_progress.reduce((sum: number, p: any) => sum + (p.xp_earned || 0), 0),
-        currentLevel: Math.floor(path.user_progress.reduce((sum: number, p: any) => sum + (p.xp_earned || 0), 0) / 1000) + 1,
-        lastAccessed: path.user_progress.sort((a: any, b: any) => 
-          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-        )[0]?.updated_at
-      } : null
-
-      return {
-        path: this.transformPath(path),
-        stages,
-        userProgress
-      }
-    } catch (error) {
-      console.error('Error fetching path with stages:', error)
-      throw error
-    }
-  }
-
-  private calculateStageStatus(
-    stage: any,
-    userProgress: any[]
-  ): 'locked' | 'available' | 'completed' {
-    const stageProgress = userProgress?.find((p: any) => p.stage_id === stage.id)
-    if (!stageProgress) return 'locked'
-    return stageProgress.status
-  }
-
-  private calculateStageProgress(stage: any, userProgress: any[]): number {
-    const stageProgress = userProgress?.find((p: any) => p.stage_id === stage.id)
-    return stageProgress?.progress || 0
+  private calculateStageProgress(stage: StageProgressData, userProgress: UserProgressData[]): number {
+    const stageProgress = userProgress.find((p: UserProgressData) => p.stage_id === stage.id);
+    return stageProgress?.progress || 0;
   }
 
   async createLearningPath(data: {
-    title: string
-    description: string
-    categoryId: string
-    difficulty: 'beginner' | 'intermediate' | 'advanced'
-    estimatedHours: number
+    title: string;
+    description: string;
+    difficulty: string;
+    category_id: string;
+    estimated_duration: number;
+    prerequisites?: string[];
+    learning_objectives?: string[];
+    stages: Omit<PathStage, 'id'>[];
   }): Promise<string> {
     try {
       const { data: path, error } = await this.supabase
@@ -955,52 +1080,85 @@ class LearningPathService {
         .insert({
           title: data.title,
           description: data.description,
-          category_id: data.categoryId,
+          category_id: data.category_id,
           difficulty: data.difficulty,
-          estimated_hours: data.estimatedHours,
-          is_published: true
+          estimated_hours: data.estimated_duration,
+          is_published: true,
         })
         .select('id')
-        .single()
+        .single();
 
-      if (error) throw error
-      return path.id
+      if (error) throw error;
+      return path.id;
     } catch (error) {
-      console.error('Error creating learning path:', error)
-      throw error
+      console.error('Error creating learning path:', error);
+      throw error;
     }
   }
 
-  async getCategories(): Promise<{ id: string; name: string }[]> {
+  async getCategories(): Promise<CategoryData[]> {
     try {
       const { data: categories, error } = await this.supabase
         .from('categories')
         .select('id, name')
-        .order('name')
+        .order('name');
 
-      if (error) throw error
-      return categories
+      if (error) throw error;
+      return categories;
     } catch (error) {
-      console.error('Error fetching categories:', error)
-      throw error
+      console.error('Error fetching categories:', error);
+      throw error;
     }
   }
 
-  async isEnrolled(userId: string, pathId: string): Promise<boolean> {
+  async getPathStudyPlan(pathId: string, currentUser: string): Promise<StudyPlanData> {
     try {
-      // Check enrollment from profiles
-      const { data: profile } = await this.supabase
-        .from('profiles')
-        .select('enrolled_paths')
-        .eq('id', userId)
-        .single()
+      const { data: plan, error } = await this.supabase
+        .from('study_plans')
+        .select('*')
+        .eq('path_id', pathId)
+        .eq('user_id', currentUser)
+        .single();
 
-      return profile?.enrolled_paths?.includes(pathId) || false
+      if (error) throw error;
+
+      return {
+        schedule: plan.schedule || [],
+        estimatedCompletion: plan.estimated_completion || 'Unknown',
+        weeklyGoals: plan.weekly_goals || [],
+      };
     } catch (error) {
-      console.error('Error checking enrollment:', error)
-      return false
+      console.error('Error getting study plan:', error);
+      return {
+        schedule: [],
+        estimatedCompletion: 'Unknown',
+        weeklyGoals: [],
+      };
+    }
+  }
+
+  async getPathAnalytics(pathId: string): Promise<PathAnalytics> {
+    try {
+      const { data: progressData, error } = await this.supabase
+        .from('learning_path_progress')
+        .select('*')
+        .eq('path_id', pathId);
+
+      if (error) throw error;
+
+      const analytics: PathAnalytics = {
+        totalUsers: progressData?.length || 0,
+        averageProgress: 0,
+        completionRate: 0,
+        averageTimeSpent: 0,
+      };
+
+      return analytics;
+    } catch (error) {
+      console.error('Error getting path analytics:', error);
+      throw error;
     }
   }
 }
 
-export const learningPathService = new LearningPathService() 
+export const learningPathService = new LearningPathService();

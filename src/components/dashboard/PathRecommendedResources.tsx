@@ -27,7 +27,6 @@ interface PathRecommendedResourcesProps {
 }
 
 export function PathRecommendedResources({
-  pathId,
   resources,
   onResourceClick
 }: PathRecommendedResourcesProps) {

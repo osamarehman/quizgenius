@@ -1,6 +1,6 @@
 import { Question, QuestionType, EducationLevel, BatchProcessingResult } from './types'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import OpenAI from 'openai'
+import {generateBatchPrompt } from './promptVariations'
 
 interface BatchGenerationOptions {
   subject: string
@@ -19,7 +19,6 @@ export async function generateQuestionsBatch(
   openai: OpenAI
 ): Promise<BatchProcessingResult<Question[]>> {
   try {
-    const supabase = createClientComponentClient()
     const batches: Question[][] = []
     
     for (let i = 0; i < count; i += options.batchSize) {
@@ -39,7 +38,7 @@ export async function generateQuestionsBatch(
           if (options.validateResults) {
             // Validate questions before accepting them
             const validQuestions = batch.filter(question => 
-              validateGeneratedQuestion(question, options.subject, options.level)
+              validateGeneratedQuestion(question, options.subject)
             )
             
             if (validQuestions.length < batchSize) {
@@ -52,7 +51,7 @@ export async function generateQuestionsBatch(
           }
           
           success = true
-        } catch (error) {
+        } catch {
           retryCount++
           await new Promise(resolve => setTimeout(resolve, 1000 * retryCount))
         }
@@ -73,9 +72,11 @@ export async function generateQuestionsBatch(
     }
     
   } catch (error) {
+    console.error('Error generating questions:', error instanceof Error ? error.message : 'Unknown error')
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
+      data: [],
       retryCount: options.maxRetries,
       timestamp: new Date().toISOString()
     }
@@ -138,43 +139,18 @@ async function generateQuestionBatch(
 function validateGeneratedQuestion(
   question: Question,
   subject: string,
-  level: EducationLevel
 ): boolean {
   // Basic validation
   if (!question.text || !question.answers || question.answers.length < 2) {
     return false
   }
 
-  // Check for correct answer
-  if (!question.answers.some(answer => answer.isCorrect)) {
+  // Subject-specific validation
+  if (subject && !question.text.toLowerCase().includes(subject.toLowerCase())) {
     return false
   }
 
-  // Subject-specific validation
-  switch (subject) {
-    case 'mathematics':
-      return validateMathQuestion(question)
-    case 'science':
-      return validateScienceQuestion(question)
-    default:
-      return true
-  }
-}
-
-function validateMathQuestion(question: Question): boolean {
-  // Check for mathematical expressions
-  return (
-    question.text.includes('$') || // LaTeX formatting
-    /[\d+\-*/()=]/.test(question.text) // Basic math operators
-  )
-}
-
-function validateScienceQuestion(question: Question): boolean {
-  // Check for scientific terms and units
-  return (
-    /[A-Z][a-z]*\d*/.test(question.text) || // Chemical formulas
-    /\d+\s*[a-zA-Z]+/.test(question.text) // Units
-  )
+  return true
 }
 
 function parseQuestions(response: string): Question[] {

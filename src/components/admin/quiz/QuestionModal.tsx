@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import Image from 'next/image'
 
 interface Answer {
   text: string
@@ -151,7 +152,8 @@ export function QuestionModal({ onQuestionAdd }: {
       // Reset form and close dialog
       resetForm()
       setOpen(false)
-    } catch (error) {
+    } catch (submitError) {
+      console.error('Failed to add question:', submitError)
       toast({
         title: "Error",
         description: "Failed to add question. Please try again.",
@@ -343,12 +345,13 @@ export function QuestionModal({ onQuestionAdd }: {
           <div>
             <Label>Question Image (Optional)</Label>
             <div className="mt-2">
-              {questionImage ? (
-                <div className="relative">
-                  <img 
-                    src={questionImage} 
-                    alt="Question" 
-                    className="max-h-48 rounded-lg object-contain"
+              {questionImage && (
+                <div className="relative w-full h-48 mb-4">
+                  <Image
+                    src={questionImage}
+                    alt="Question image"
+                    fill
+                    className="object-contain"
                   />
                   <Button
                     variant="destructive"
@@ -360,7 +363,8 @@ export function QuestionModal({ onQuestionAdd }: {
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
-              ) : (
+              )}
+              {!questionImage && (
                 <div className="border-2 border-dashed rounded-lg p-4">
                   <label className="flex flex-col items-center cursor-pointer">
                     {isUploading ? (

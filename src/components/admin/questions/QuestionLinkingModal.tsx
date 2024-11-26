@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -45,30 +45,20 @@ export function QuestionLinkingModal({ quizId, onQuestionLinked }: QuestionLinki
   const supabase = createClientComponentClient()
   const { toast } = useToast()
 
-  useEffect(() => {
-    if (open) {
-      fetchUnlinkedQuestions()
-    }
-  }, [open])
-
-  const fetchUnlinkedQuestions = async () => {
+  const fetchUnlinkedQuestions = useCallback(async () => {
     try {
       setIsLoading(true)
       // Fetch questions that are not linked to any quiz
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('questions')
         .select('*')
         .is('quiz_id', null)
         .order('created_at', { ascending: false })
 
-      if (error) {
-        console.error('Error fetching questions:', error)
-        throw error
-      }
-
       console.log('Fetched questions:', data) // Debug log
       setQuestions(data || [])
     } catch (error) {
+      console.error('Error fetching questions:', error)
       toast({
         title: "Error",
         description: "Failed to fetch questions",
@@ -77,7 +67,13 @@ export function QuestionLinkingModal({ quizId, onQuestionLinked }: QuestionLinki
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [supabase, toast])
+
+  useEffect(() => {
+    if (open) {
+      fetchUnlinkedQuestions()
+    }
+  }, [open, fetchUnlinkedQuestions])
 
   const handleLinkQuestion = async (questionId: string) => {
     try {
@@ -197,4 +193,4 @@ export function QuestionLinkingModal({ quizId, onQuestionLinked }: QuestionLinki
       </DialogContent>
     </Dialog>
   )
-} 
+}

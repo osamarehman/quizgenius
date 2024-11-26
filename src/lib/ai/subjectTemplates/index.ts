@@ -82,7 +82,6 @@ function adjustValidationRules(
 
 function getSystemSpecificTips(
   system: EducationSystem,
-  level: EducationLevel
 ): string[] {
   switch (system) {
     case 'o-levels':
@@ -110,7 +109,6 @@ function getSystemSpecificTips(
 
 function getSystemSpecificValidationRules(
   system: EducationSystem,
-  level: EducationLevel
 ): string[] {
   switch (system) {
     case 'o-levels':

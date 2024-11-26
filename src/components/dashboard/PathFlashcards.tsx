@@ -1,22 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
+import { useState } from 'react'
+import { Brain, Shuffle, Plus, ArrowLeft, ArrowRight, Star } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useToast } from "@/hooks/use-toast"
 import { useAchievements } from "@/contexts/AchievementContext"
-import { motion, AnimatePresence } from 'framer-motion'
-import {
-  Brain,
-  Shuffle,
-  RotateCcw,
-  Plus,
-  Edit2,
-  Star,
-  ArrowLeft,
-  ArrowRight
-} from 'lucide-react'
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
 
 interface Flashcard {
   id: string
@@ -40,16 +31,11 @@ interface PathFlashcardsProps {
 
 export function PathFlashcards({
   pathId,
-  stageId,
   flashcards,
   onUpdateCard,
-  onCreateCard
 }: PathFlashcardsProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
-  const [newCard, setNewCard] = useState({ front: '', back: '' })
-  const [studyMode, setStudyMode] = useState<'review' | 'learn'>('review')
   const { toast } = useToast()
   const { checkAchievement } = useAchievements()
 
@@ -82,6 +68,15 @@ export function PathFlashcards({
     return { repetitions, easeFactor, interval, nextReview }
   }
 
+  const handleError = (error: Error) => {
+    console.error('Error updating flashcard:', error)
+    toast({
+      title: "Error",
+      description: "Failed to update flashcard. Please try again.",
+      variant: "destructive"
+    })
+  }
+
   const handleCardRating = async (quality: number) => {
     const card = flashcards[currentIndex]
     const updates = calculateNextReview(card, quality)
@@ -106,11 +101,7 @@ export function PathFlashcards({
 
       goToNextCard()
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to save progress",
-        variant: "destructive",
-      })
+      handleError(error)
     }
   }
 
@@ -150,7 +141,12 @@ export function PathFlashcards({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setIsEditing(true)}
+              onClick={() => {
+                toast({
+                  title: "Coming soon",
+                  description: "This feature will be available soon.",
+                })
+              }}
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Card
@@ -254,4 +250,4 @@ export function PathFlashcards({
       </div>
     </Card>
   )
-} 
+}

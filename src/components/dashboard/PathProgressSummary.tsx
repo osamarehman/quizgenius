@@ -26,7 +26,6 @@ interface PathProgressSummaryProps {
 }
 
 export function PathProgressSummary({
-  pathId,
   progress,
   onContinue
 }: PathProgressSummaryProps) {

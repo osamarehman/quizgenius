@@ -10,7 +10,7 @@ export function DashboardHeader() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Welcome back, John!</h1>
-          <p className="text-muted-foreground">Here's your learning progress</p>
+          <p className="text-muted-foreground">Here&apos;s your learning progress</p>
         </div>
         <div className="flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full">
           <Flame className="h-5 w-5" />
@@ -42,7 +42,7 @@ export function DashboardHeader() {
           trendDirection="up"
         />
       </div>
-      <h2>Let's continue your learning journey!</h2>
+      <p className="text-sm text-muted-foreground">Let&apos;s continue your learning journey!</p>
     </div>
   )
 }

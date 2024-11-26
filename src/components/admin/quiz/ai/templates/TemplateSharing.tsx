@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { Share2, Users, Globe, Link } from 'lucide-react'
-import { shareTemplate, getSharedTemplates } from '@/lib/ai/promptTemplates/sharingManager'
+import { shareTemplate } from '@/lib/ai/promptTemplates/sharingManager'
 
 interface TemplateSharingProps {
   templateId: string
@@ -44,7 +44,8 @@ export function TemplateSharing({
         title: "Success",
         description: "Template sharing settings updated",
       })
-    } catch (error) {
+    } catch (shareError) {
+      console.error('Failed to update sharing settings:', shareError)
       toast({
         title: "Error",
         description: "Failed to update sharing settings",
@@ -70,7 +71,8 @@ export function TemplateSharing({
         title: "Success",
         description: `Template is now ${enabled ? 'public' : 'private'}`,
       })
-    } catch (error) {
+    } catch (visibilityError) {
+      console.error('Failed to update visibility:', visibilityError)
       toast({
         title: "Error",
         description: "Failed to update visibility",

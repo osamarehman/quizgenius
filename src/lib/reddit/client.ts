@@ -1,5 +1,4 @@
 import snoowrap from 'snoowrap'
-import { redditConfig } from './config'
 
 // Reddit API client singleton
 let redditClient: snoowrap | null = null
@@ -27,34 +26,74 @@ export function getRedditClient() {
   return redditClient
 }
 
+export interface RedditPost {
+  id: string
+  title: string
+  selftext: string
+  author: string
+  score: number
+  created_utc: number
+  subreddit: string
+  permalink: string
+  url: string
+}
+
+export interface RedditComment {
+  id: string
+  body: string
+  author: string
+  score: number
+  created_utc: number
+  replies?: RedditComment[]
+}
+
+interface RedditSearchResponse {
+  data: {
+    children: Array<{
+      data: RedditPost
+    }>
+  }
+}
+
+interface RedditCommentResponse {
+  data: {
+    children: Array<{
+      data: RedditComment
+    }>
+  }
+}
+
 export async function searchReddit(
   query: string, 
   subreddit: string | null | undefined, 
   timeFilter: string = 'all', 
   sort: string = 'relevance'
-) {
-  const reddit = getRedditClient()
-  
-  try {
-    let searchOptions: any = {
-      query,
-      time: timeFilter,
+): Promise<RedditPost[]> {
+  const client = await getRedditClient()
+  const response = await client.get<RedditSearchResponse>('/search.json', {
+    params: {
+      q: query,
+      restrict_sr: subreddit ? 1 : 0,
+      t: timeFilter,
       sort,
-      limit: 25
+      limit: 25,
+      ...(subreddit && { subreddit })
     }
+  })
+  return response.data.data.children.map(child => child.data)
+}
 
-    let posts
-    if (subreddit && subreddit !== 'all') {
-      posts = await reddit.getSubreddit(subreddit).search(searchOptions)
-    } else {
-      posts = await reddit.search(searchOptions)
-    }
-
-    return formatPosts(posts)
-  } catch (error) {
-    console.error('Reddit search error:', error)
-    throw error
-  }
+export async function getRedditComments(
+  postId: string,
+  subreddit: string
+): Promise<RedditComment[]> {
+  const client = await getRedditClient()
+  const response = await client.get<[RedditSearchResponse, RedditCommentResponse]>(
+    `/r/${subreddit}/comments/${postId}.json`
+  )
+  return response.data[1].data.children
+    .map(child => child.data)
+    .filter(comment => comment.body && comment.author)
 }
 
 export async function getSubreddits(where: 'popular' | 'new' = 'popular', limit: number = 25) {
@@ -71,24 +110,6 @@ export async function getSubreddits(where: 'popular' | 'new' = 'popular', limit:
     console.error('Error fetching subreddits:', error)
     throw error
   }
-}
-
-async function formatPosts(posts: any[]) {
-  return Promise.all(posts.map(async (post) => {
-    const fullPost = await post.fetch()
-    return {
-      id: fullPost.id,
-      title: fullPost.title,
-      selftext: fullPost.selftext,
-      created_utc: fullPost.created_utc,
-      subreddit: fullPost.subreddit.display_name,
-      url: fullPost.url,
-      score: fullPost.score,
-      num_comments: fullPost.num_comments,
-      preview_text: fullPost.selftext.substring(0, 200) + '...',
-      author: fullPost.author.name
-    }
-  }))
 }
 
 export const SORT_OPTIONS = [
@@ -118,4 +139,4 @@ export const SUPPORTED_SUBREDDITS = [
   'chemistry',
   'biology',
   'physics'
-] as const 
+] as const

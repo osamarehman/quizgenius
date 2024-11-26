@@ -4,7 +4,6 @@ import {
   Question, 
   BatchProcessingOptions, 
   BatchProcessingResult,
-  ValidationResult
 } from './types'
 import { validateQuestionBatch } from './batchValidation'
 import { generateSubjectPrompt } from './subjectPrompts'

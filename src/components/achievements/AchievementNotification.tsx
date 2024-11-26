@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Trophy, Star, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Card } from "@/components/ui/card"
-import { cn } from "@/lib/utils"
 import confetti from 'canvas-confetti'
 
 interface AchievementNotificationProps {

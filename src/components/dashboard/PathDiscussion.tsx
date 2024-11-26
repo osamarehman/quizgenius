@@ -42,7 +42,7 @@ interface PathDiscussionProps {
 }
 
 export function PathDiscussion({
-  pathId,
+  
   comments,
   onAddComment,
   onLikeComment,
@@ -66,7 +66,7 @@ export function PathDiscussion({
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to add comment",
+        description: error instanceof Error ? error.message : "Failed to add comment",
         variant: "destructive",
       })
     }
@@ -86,7 +86,7 @@ export function PathDiscussion({
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to add reply",
+        description: error instanceof Error ? error.message : "Failed to add reply",
         variant: "destructive",
       })
     }

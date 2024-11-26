@@ -44,7 +44,7 @@ export function UserGoals() {
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to update goals",
+        description: error instanceof Error ? error.message : "Failed to update goals",
         variant: "destructive",
       })
     }

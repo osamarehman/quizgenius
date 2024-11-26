@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   BookOpen,
@@ -38,9 +37,7 @@ interface PathRecommendationsProps {
 }
 
 export function PathRecommendations({
-  pathId,
-  currentStageId,
-  userLevel,
+ 
   recommendations,
   onResourceSelect
 }: PathRecommendationsProps) {

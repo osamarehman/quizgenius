@@ -4,7 +4,7 @@ import React from 'react'
 import { AlertCircle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { AIError, ErrorCode } from '@/lib/ai/errorHandling'
+import { AIError } from '@/lib/ai/errorHandling'
 
 interface Props {
   children: React.ReactNode

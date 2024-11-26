@@ -1,81 +1,126 @@
-'use client'
+import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/hooks/use-toast';
 
-import { useState } from 'react'
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
-import { validateQuestion, getValidationSummary } from '@/lib/ai/validation'
-import { Question } from '@/lib/ai/types'
-
-interface BatchValidationProps {
-  questions: Question[]
-  onValidationComplete: (results: any) => void
+interface ValidationError {
+  field: string;
+  message: string;
+  severity: 'error' | 'warning' | 'info';
 }
 
-export function BatchValidation({ questions, onValidationComplete }: BatchValidationProps) {
-  const [isValidating, setIsValidating] = useState(false)
-  const [progress, setProgress] = useState(0)
+interface ValidationResult {
+  errors: ValidationError[];
+  warnings: ValidationError[];
+  infos: ValidationError[];
+  totalChecks: number;
+  completedChecks: number;
+}
 
-  const runBatchValidation = async () => {
-    setIsValidating(true)
-    const results = []
-    
-    for (let i = 0; i < questions.length; i++) {
-      const validationResult = validateQuestion(questions[i])
-      results.push({
-        questionIndex: i,
-        ...validationResult
-      })
-      setProgress(((i + 1) / questions.length) * 100)
+interface BatchValidationProps {
+  onValidate: () => Promise<ValidationResult>;
+  onCancel: () => void;
+  isValidating: boolean;
+}
+
+export default function BatchValidation({ onValidate, onCancel, isValidating }: BatchValidationProps) {
+  const { toast } = useToast();
+  const [progress, setProgress] = React.useState(0);
+  const [result, setResult] = React.useState<ValidationResult | null>(null);
+
+  const handleValidate = async () => {
+    try {
+      const validationResult = await onValidate();
+      setResult(validationResult);
+      setProgress(100);
+      
+      const { errors, warnings } = validationResult;
+      if (errors.length > 0) {
+        toast({
+          title: 'Validation Failed',
+          description: `Found ${errors.length} errors and ${warnings.length} warnings`,
+          variant: 'destructive',
+        });
+      } else if (warnings.length > 0) {
+        toast({
+          title: 'Validation Complete',
+          description: `Found ${warnings.length} warnings`,
+          variant: 'warning',
+        });
+      } else {
+        toast({
+          title: 'Validation Successful',
+          description: 'No issues found',
+          variant: 'default',
+        });
+      }
+    } catch (error) {
+      console.error('Validation error:', error);
+      toast({
+        title: 'Validation Error',
+        description: 'An error occurred during validation',
+        variant: 'destructive',
+      });
     }
+  };
 
-    const summary = results.reduce((acc, curr) => ({
-      totalErrors: acc.totalErrors + curr.errors.length,
-      totalWarnings: acc.totalWarnings + curr.warnings.length,
-      totalInfo: acc.totalInfo + curr.info.length,
-      categories: {
-        content: acc.categories.content + curr.all.filter(r => !r.passed && r.category === 'content').length,
-        structure: acc.categories.structure + curr.all.filter(r => !r.passed && r.category === 'structure').length,
-        pedagogy: acc.categories.pedagogy + curr.all.filter(r => !r.passed && r.category === 'pedagogy').length,
-        accessibility: acc.categories.accessibility + curr.all.filter(r => !r.passed && r.category === 'accessibility').length,
-      }
-    }), {
-      totalErrors: 0,
-      totalWarnings: 0,
-      totalInfo: 0,
-      categories: {
-        content: 0,
-        structure: 0,
-        pedagogy: 0,
-        accessibility: 0
-      }
-    })
+  React.useEffect(() => {
+    if (isValidating) {
+      const timer = setInterval(() => {
+        setProgress(prev => {
+          const next = prev + 1;
+          return next > 95 ? 95 : next;
+        });
+      }, 100);
 
-    onValidationComplete({ results, summary })
-    setIsValidating(false)
-    setProgress(0)
-  }
+      return () => clearInterval(timer);
+    }
+  }, [isValidating]);
 
   return (
-    <Card className="p-4 space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="font-medium">Batch Validation</h3>
-        <Button
-          onClick={runBatchValidation}
-          disabled={isValidating}
-        >
-          {isValidating ? 'Validating...' : 'Validate All Questions'}
-        </Button>
-      </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Batch Validation</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          <Progress value={progress} className="w-full" />
+          
+          <div className="flex justify-between">
+            <Button
+              variant="outline"
+              onClick={onCancel}
+              disabled={isValidating}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleValidate}
+              disabled={isValidating}
+            >
+              Start Validation
+            </Button>
+          </div>
 
-      {isValidating && (
-        <div className="space-y-2">
-          <Progress value={progress} />
-          <p className="text-sm text-muted-foreground">
-            Validating questions... {Math.round(progress)}%
-          </p>
+          {result && (
+            <div className="mt-4 space-y-2">
+              <p>Validation Results:</p>
+              <ul className="list-disc pl-5">
+                <li className="text-red-500">
+                  {result.errors.length} Errors
+                </li>
+                <li className="text-yellow-500">
+                  {result.warnings.length} Warnings
+                </li>
+                <li className="text-blue-500">
+                  {result.infos.length} Info
+                </li>
+              </ul>
+            </div>
+          )}
         </div>
-      )}
+      </CardContent>
     </Card>
-  )
-} 
+  );
+}

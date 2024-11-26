@@ -9,7 +9,6 @@ import {
   Star,
   ThumbsUp,
   ThumbsDown,
-  MessageSquare,
   Flag
 } from 'lucide-react'
 import {
@@ -43,7 +42,6 @@ interface PathFeedbackProps {
 }
 
 export function PathFeedback({
-  pathId,
   reviews,
   userRating,
   onSubmitReview,
@@ -76,7 +74,7 @@ export function PathFeedback({
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to submit review",
+        description: error instanceof Error ? error.message : "Failed to submit review",
         variant: "destructive",
       })
     } finally {

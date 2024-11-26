@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { LoadingSpinner } from '@/components/ui/loading'
@@ -23,11 +23,7 @@ export default function AdminQuizzesPage() {
   const router = useRouter()
   const supabase = createClientComponentClient()
 
-  useEffect(() => {
-    fetchQuizzes()
-  }, [fetchQuizzes]) // Add fetchQuizzes to dependency array
-
-  const fetchQuizzes = async () => {
+  const fetchQuizzes = useCallback(async () => {
     try {
       const { data: quizzesData, error: quizzesError } = await supabase
         .from('quizzes')
@@ -43,12 +39,16 @@ export default function AdminQuizzesPage() {
         ...quiz,
         questions_count: quiz.questions?.[0]?.count || 0
       })))
-    } catch (error) {
-      console.error('Error fetching quizzes:', error)
+    } catch (err) {
+      console.error('Error fetching quizzes:', err)
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    fetchQuizzes()
+  }, [fetchQuizzes])
 
   if (isLoading) {
     return <LoadingSpinner />

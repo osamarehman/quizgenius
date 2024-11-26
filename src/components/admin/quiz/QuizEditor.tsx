@@ -1,141 +1,113 @@
-'use client'
-
-import React from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { ImageUpload } from '@/components/ui/image-upload'
-import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
 import { toast } from '@/hooks/use-toast'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { Database } from '@/types/supabase'
+import { ImageUpload } from '@/components/ui/image-upload'
+import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { checkAdminStatus } from '@/lib/supabase/client'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { useState, useEffect, ChangeEvent } from 'react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+
+interface SupabaseError {
+  message: string
+  code?: string
+  details?: string
+  hint?: string
+}
+
+interface User {
+  id: string
+  email?: string
+  role?: string
+}
 
 interface Category {
-  id: string;
-  name: string;
-  slug: string;
-  description?: string;
-  parent_id?: string | null;
-  education_system_id?: string;
-  created_at?: string;
-  updated_at?: string;
+  id: string
+  name: string
+  slug: string
+  description?: string
+  parent_id?: string | null
+  education_system_id?: string
+  created_at?: string
+  updated_at?: string
 }
 
 interface EducationSystem {
-  id: string;
-  name: string;
-  slug: string;
-  description?: string;
+  id: string
+  name: string
+  slug: string
+  description?: string
 }
-
-const quizSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
-  description: z.string().min(1, 'Description is required'),
-  time_limit: z.string().transform((val) => parseInt(val, 10)).refine((val) => val >= 1, 'Time limit must be at least 1 minute'),
-  category_id: z.string().min(1, 'Category is required'),
-  sub_category_id: z.string().min(1, 'Sub-category is required'),
-  education_system_id: z.string().min(1, 'Education system is required'),
-})
-
-type QuizFormValues = z.infer<typeof quizSchema>
 
 interface QuizEditorProps {
-  initialData?: {
-    id: string;
-    title: string;
-    description: string;
-    time_limit: number;
-    image_url?: string;
-    category_id?: string;
-    education_system_id?: string;
-  }
+  quizId?: string
 }
 
-// Add interfaces for new category creation
-interface NewCategoryFormData {
-  name: string;
-  description?: string;
-  education_system_id: string;
+interface FormData {
+  title: string
+  description: string
+  category: string
+  subCategory: string
+  educationSystem: string
+  difficulty: 'beginner' | 'intermediate' | 'advanced'
+  timeLimit: number
+  passingScore: number
+  imageUrl?: string
 }
 
-interface NewSubCategoryFormData {
-  name: string;
-  description?: string;
-  parent_id: string;
-}
-
-interface NewEducationSystemFormData {
-  name: string;
-  description?: string;
-  slug?: string;
-}
-
-export function QuizEditor({ initialData }: QuizEditorProps) {
+export function QuizEditor({ quizId }: QuizEditorProps) {
+  const supabase = createClientComponentClient<Database>()
   const router = useRouter()
   
   // Form setup
-  const { register, handleSubmit, formState: { errors }, setValue } = useForm<QuizFormValues>({
-    resolver: zodResolver(quizSchema),
-    defaultValues: {
-      title: initialData?.title || '',
-      description: initialData?.description || '',
-      time_limit: initialData?.time_limit?.toString() || '30',
-      category_id: initialData?.category_id || '',
-      sub_category_id: initialData?.sub_category_id || '',
-      education_system_id: initialData?.education_system_id || '',
-    }
+  const [formData, setFormData] = useState<FormData>({
+    title: '',
+    description: '',
+    category: '',
+    subCategory: '',
+    educationSystem: '',
+    difficulty: 'beginner',
+    timeLimit: 30,
+    passingScore: 70,
+    imageUrl: ''
   })
 
   // State
-  const [imageUrl, setImageUrl] = React.useState<string>(initialData?.image_url || '')
-  const [uploading, setUploading] = React.useState(false)
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [isLoading, setIsLoading] = React.useState(true)
-  const [user, setUser] = React.useState<any>(null)
-  const [categories, setCategories] = React.useState<Category[]>([])
-  const [subCategories, setSubCategories] = React.useState<Category[]>([])
-  const [selectedCategory, setSelectedCategory] = React.useState<string>(
-    initialData?.category_id || ''
-  )
-  const [educationSystems, setEducationSystems] = React.useState<EducationSystem[]>([])
-  const [selectedEducationSystem, setSelectedEducationSystem] = React.useState<string>(
-    initialData?.education_system_id || ''
-  )
-
-  // Add states for new category creation
-  const [isCreatingCategory, setIsCreatingCategory] = React.useState(false)
-  const [isCreatingSubCategory, setIsCreatingSubCategory] = React.useState(false)
-  const [newCategoryName, setNewCategoryName] = React.useState('')
-  const [newCategoryDescription, setNewCategoryDescription] = React.useState('')
-  const [newSubCategoryName, setNewSubCategoryName] = React.useState('')
-  const [newSubCategoryDescription, setNewSubCategoryDescription] = React.useState('')
-
-  // Add state for new education system
-  const [isCreatingEducationSystem, setIsCreatingEducationSystem] = React.useState(false)
-  const [newEducationSystemName, setNewEducationSystemName] = React.useState('')
-  const [newEducationSystemDescription, setNewEducationSystemDescription] = React.useState('')
+  const [imageUrl, setImageUrl] = useState<string>('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [user, setUser] = useState<User | null>(null)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [subCategories, setSubCategories] = useState<Category[]>([])
+  const [selectedCategory, setSelectedCategory] = useState<string>('')
+  const [educationSystems, setEducationSystems] = useState<EducationSystem[]>([])
+  const [selectedEducationSystem, setSelectedEducationSystem] = useState<string>('')
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false)
+  const [isCreatingSubCategory, setIsCreatingSubCategory] = useState(false)
+  const [isCreatingEducationSystem, setIsCreatingEducationSystem] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [newCategoryDescription, setNewCategoryDescription] = useState('')
+  const [newSubCategoryName, setNewSubCategoryName] = useState('')
+  const [newSubCategoryDescription, setNewSubCategoryDescription] = useState('')
+  const [newEducationSystemName, setNewEducationSystemName] = useState('')
+  const [newEducationSystemDescription, setNewEducationSystemDescription] = useState('')
 
   // Auth check
-  React.useEffect(() => {
+  useEffect(() => {
     const initAuth = async () => {
       try {
-        const adminUser = await checkAdminStatus()
-        console.log('Auth check result:', adminUser)
-        
-        if (!adminUser) {
-          console.log('No admin user found, redirecting...')
+        const user = await checkAdminStatus()
+        if (!user) {
           router.push('/auth/admin/login')
           return
         }
-
-        setUser(adminUser)
+        setUser(user)
       } catch (error) {
-        console.error('Auth check error:', error)
+        console.error('Auth error:', error)
         router.push('/auth/admin/login')
       } finally {
         setIsLoading(false)
@@ -146,31 +118,37 @@ export function QuizEditor({ initialData }: QuizEditorProps) {
   }, [router])
 
   // Fetch education systems
-  React.useEffect(() => {
+  useEffect(() => {
+    let isMounted = true
+
     const fetchEducationSystems = async () => {
       try {
-        const { data, error } = await supabase
+        const { data: educationSystemsData, error } = await supabase
           .from('education_systems')
           .select('*')
           .order('name')
 
         if (error) throw error
-        setEducationSystems(data || [])
+
+        if (isMounted && educationSystemsData) {
+          setEducationSystems(educationSystemsData)
+        }
       } catch (error) {
         console.error('Error fetching education systems:', error)
-        toast({
-          title: "Error",
-          description: "Failed to load education systems",
-          variant: "destructive"
-        })
       }
     }
 
     fetchEducationSystems()
-  }, [])
+
+    return () => {
+      isMounted = false
+    }
+  }, [supabase])
 
   // Update categories fetch to filter by education system
-  React.useEffect(() => {
+  useEffect(() => {
+    let isMounted = true
+
     const fetchCategories = async () => {
       if (!selectedEducationSystem) {
         setCategories([])
@@ -178,7 +156,7 @@ export function QuizEditor({ initialData }: QuizEditorProps) {
       }
 
       try {
-        const { data, error } = await supabase
+        const { data: categoriesData, error } = await supabase
           .from('categories')
           .select('*')
           .eq('education_system_id', selectedEducationSystem)
@@ -186,22 +164,26 @@ export function QuizEditor({ initialData }: QuizEditorProps) {
           .order('name')
 
         if (error) throw error
-        setCategories(data || [])
+
+        if (isMounted && categoriesData) {
+          setCategories(categoriesData)
+        }
       } catch (error) {
         console.error('Error fetching categories:', error)
-        toast({
-          title: "Error",
-          description: "Failed to load categories",
-          variant: "destructive"
-        })
       }
     }
 
     fetchCategories()
-  }, [selectedEducationSystem])
 
-  // Fetch sub-categories when category changes
-  React.useEffect(() => {
+    return () => {
+      isMounted = false
+    }
+  }, [selectedEducationSystem, supabase])
+
+  // Fetch subcategories based on selected category
+  useEffect(() => {
+    let isMounted = true
+
     const fetchSubCategories = async () => {
       if (!selectedCategory) {
         setSubCategories([])
@@ -209,55 +191,49 @@ export function QuizEditor({ initialData }: QuizEditorProps) {
       }
 
       try {
-        const { data, error } = await supabase
+        const { data: subCategoriesData, error } = await supabase
           .from('categories')
           .select('*')
           .eq('parent_id', selectedCategory)
           .order('name')
 
         if (error) throw error
-        setSubCategories(data || [])
+
+        if (isMounted && subCategoriesData) {
+          setSubCategories(subCategoriesData)
+        }
       } catch (error) {
-        console.error('Error fetching sub-categories:', error)
-        toast({
-          title: "Error",
-          description: "Failed to load sub-categories",
-          variant: "destructive"
-        })
+        console.error('Error fetching subcategories:', error)
       }
     }
 
     fetchSubCategories()
-  }, [selectedCategory])
+
+    return () => {
+      isMounted = false
+    }
+  }, [selectedCategory, supabase])
 
   // Handle category change
-  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleCategoryChange = (e: ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value
     setSelectedCategory(value)
     // Reset sub-category when category changes
-    setValue('sub_category_id', '')
+    setFormData((prev) => ({ ...prev, subCategory: '' }))
   }
 
   // Handle education system change
-  const handleEducationSystemChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleEducationSystemChange = (e: ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value
     setSelectedEducationSystem(value)
     // Reset category and sub-category when education system changes
     setSelectedCategory('')
-    setValue('category_id', '')
-    setValue('sub_category_id', '')
+    setFormData((prev) => ({ ...prev, category: '', subCategory: '' }))
   }
 
   // Image upload handler
-  const handleImageUpload = async (file: File) => {
+  const handleImageUpload = async (file: File): Promise<void> => {
     try {
-      setUploading(true)
-      
-      if (!file.name) {
-        setImageUrl('')
-        return
-      }
-
       if (!user) {
         toast({
           title: "Error",
@@ -284,8 +260,8 @@ export function QuizEditor({ initialData }: QuizEditorProps) {
       const filePath = `quiz-covers/${fileName}`
 
       // Delete old image if exists and updating
-      if (initialData?.image_url) {
-        const oldPath = initialData.image_url.split('/').pop()
+      if (formData.imageUrl) {
+        const oldPath = formData.imageUrl.split('/').pop()
         if (oldPath) {
           await supabase.storage
             .from('quiz-assets')
@@ -309,99 +285,67 @@ export function QuizEditor({ initialData }: QuizEditorProps) {
         .getPublicUrl(filePath)
 
       setImageUrl(publicUrl)
-      toast({
-        title: "Success",
-        description: "Image uploaded successfully",
-      })
-    } catch (error: any) {
-      console.error('Error uploading image:', error)
+      setFormData(prev => ({ ...prev, imageUrl: publicUrl }))
+    } catch (error) {
+      const err = error as Error
       toast({
         title: "Error",
-        description: error.message || "Failed to upload image",
+        description: err.message,
         variant: "destructive"
       })
-    } finally {
-      setUploading(false)
     }
   }
 
-  // Form submit handler
-  const onSubmit = async (data: QuizFormValues) => {
-    if (isSubmitting) return
+  // Form submission handler
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+    e.preventDefault()
+    if (!formData.title || !formData.category) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      })
+      return
+    }
 
+    setIsSubmitting(true)
     try {
-      setIsSubmitting(true)
-
-      if (!user) {
-        toast({
-          title: "Error",
-          description: "You must be logged in to create a quiz",
-          variant: "destructive"
-        })
-        return
-      }
-
       const quizData = {
-        title: data.title,
-        description: data.description,
-        time_limit: parseInt(data.time_limit, 10),
-        image_url: imageUrl || null,
-        created_by: user.id,
-        is_published: false,
-        category_id: data.category_id,
-        sub_category_id: data.sub_category_id,
-        education_system_id: data.education_system_id || null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        ...formData,
+        updated_at: new Date().toISOString()
       }
 
-      let result;
-      
-      if (initialData?.id) {
-        result = await supabase
+      if (quizId) {
+        const { error } = await supabase
           .from('quizzes')
-          .update({
-            ...quizData,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', initialData.id)
-          .select()
+          .update(quizData)
+          .eq('id', quizId)
 
-        // After successful update
+        if (error) throw error
+
         toast({
           title: "Success",
           description: "Quiz updated successfully"
         })
-        router.push('/admin/quizzes')
-        router.refresh()
       } else {
-        result = await supabase
+        const { error } = await supabase
           .from('quizzes')
-          .insert([quizData])
-          .select()
+          .insert([{ ...quizData, created_at: new Date().toISOString() }])
+
+        if (error) throw error
+
+        toast({
+          title: "Success",
+          description: "Quiz created successfully"
+        })
       }
 
-      if (result.error) throw result.error
-
-      toast({
-        title: "Success",
-        description: initialData 
-          ? "Quiz updated successfully" 
-          : "Quiz created successfully. Now let's add some questions!",
-      })
-
-      // Redirect to questions step if this is a new quiz
-      if (!initialData && result.data?.[0]) {
-        router.push(`/admin/quizzes/${result.data[0].id}/questions`)
-      } else {
-        router.push('/admin/quizzes')
-      }
-      router.refresh()
-    } catch (error: any) {
-      console.error('Error saving quiz:', error)
+      router.push('/dashboard/quizzes')
+    } catch (error) {
+      const err = error as Error | SupabaseError
       toast({
         title: "Error",
-        description: error.message || "Failed to save quiz",
+        description: 'message' in err ? err.message : "Failed to save quiz",
         variant: "destructive"
       })
     } finally {
@@ -444,7 +388,7 @@ export function QuizEditor({ initialData }: QuizEditorProps) {
       setCategories(prev => [...prev, newCategory])
       // Select the new category
       setSelectedCategory(newCategory.id)
-      setValue('category_id', newCategory.id)
+      setFormData((prev) => ({ ...prev, category: newCategory.id }))
       // Reset form
       setNewCategoryName('')
       setNewCategoryDescription('')
@@ -493,7 +437,7 @@ export function QuizEditor({ initialData }: QuizEditorProps) {
       // Update sub-categories list
       setSubCategories(prev => [...prev, newSubCategory])
       // Select the new sub-category
-      setValue('sub_category_id', newSubCategory.id)
+      setFormData((prev) => ({ ...prev, subCategory: newSubCategory.id }))
       // Reset form
       setNewSubCategoryName('')
       setNewSubCategoryDescription('')
@@ -541,7 +485,7 @@ export function QuizEditor({ initialData }: QuizEditorProps) {
       setEducationSystems(prev => [...prev, newEducationSystem])
       // Select the new education system
       setSelectedEducationSystem(newEducationSystem.id)
-      setValue('education_system_id', newEducationSystem.id)
+      setFormData((prev) => ({ ...prev, educationSystem: newEducationSystem.id }))
       // Reset form
       setNewEducationSystemName('')
       setNewEducationSystemDescription('')
@@ -569,45 +513,51 @@ export function QuizEditor({ initialData }: QuizEditorProps) {
 
   // Render form
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold mb-4">
-          {initialData ? 'Edit Quiz' : 'Create New Quiz'}
+          {quizId ? 'Edit Quiz' : 'Create New Quiz'}
         </h2>
       </div>
 
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-1">Quiz Cover Image (Optional)</label>
-          <ImageUpload
-            onUpload={handleImageUpload}
-            value={imageUrl}
-            disabled={uploading}
-            preview={imageUrl ? (
-              <img 
-                src={imageUrl} 
-                alt="Quiz cover" 
-                className="object-cover w-full h-48 rounded-md"
-              />
-            ) : undefined}
-          />
-          <p className="text-sm text-gray-500 mt-1">
-            Recommended: 1200x630px. Max size: 2MB. Supported formats: JPEG, PNG, WebP
-          </p>
+          <Label>Quiz Cover Image</Label>
+          <div className="space-y-2">
+            {imageUrl && (
+              <div className="relative w-full h-48 rounded-lg overflow-hidden">
+                <Image
+                  src={imageUrl}
+                  alt="Quiz cover"
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  priority
+                />
+              </div>
+            )}
+            <ImageUpload
+              endpoint="imageUploader"
+              onUpload={handleImageUpload}
+              className="w-full"
+            />
+            <p className="text-sm text-gray-500">
+              Recommended: 1200x630px. Max size: 2MB. Supported formats: JPEG, PNG, WebP
+            </p>
+          </div>
         </div>
 
         <div>
           <label className="block text-sm font-medium mb-1">Education System</label>
           <div className="flex gap-2">
             <select
-              {...register('education_system_id')}
+              value={formData.educationSystem}
               onChange={(e) => {
                 if (e.target.value === 'new') {
                   setIsCreatingEducationSystem(true)
                   return
                 }
                 handleEducationSystemChange(e)
-                register('education_system_id').onChange(e)
               }}
               className="w-full px-3 py-2 border rounded-md"
             >
@@ -620,9 +570,6 @@ export function QuizEditor({ initialData }: QuizEditorProps) {
               <option value="new">+ Create New Education System</option>
             </select>
           </div>
-          {errors.education_system_id && (
-            <p className="text-red-500 text-sm mt-1">{errors.education_system_id.message}</p>
-          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -630,14 +577,13 @@ export function QuizEditor({ initialData }: QuizEditorProps) {
             <label className="block text-sm font-medium mb-1">Category</label>
             <div className="flex gap-2">
               <select
-                {...register('category_id')}
+                value={formData.category}
                 onChange={(e) => {
                   if (e.target.value === 'new') {
                     setIsCreatingCategory(true)
                     return
                   }
                   handleCategoryChange(e)
-                  register('category_id').onChange(e)
                 }}
                 className="w-full px-3 py-2 border rounded-md"
                 disabled={!selectedEducationSystem}
@@ -657,13 +603,13 @@ export function QuizEditor({ initialData }: QuizEditorProps) {
             <label className="block text-sm font-medium mb-1">Sub Category</label>
             <div className="flex gap-2">
               <select
-                {...register('sub_category_id')}
+                value={formData.subCategory}
                 onChange={(e) => {
                   if (e.target.value === 'new') {
                     setIsCreatingSubCategory(true)
                     return
                   }
-                  register('sub_category_id').onChange(e)
+                  setFormData((prev) => ({ ...prev, subCategory: e.target.value }))
                 }}
                 className="w-full px-3 py-2 border rounded-md"
                 disabled={!selectedCategory}
@@ -682,18 +628,18 @@ export function QuizEditor({ initialData }: QuizEditorProps) {
 
         <div>
           <label className="block text-sm font-medium mb-1">Title</label>
-          <Input {...register('title')} />
-          {errors.title && (
-            <p className="text-red-500 text-sm mt-1">{errors.title.message}</p>
-          )}
+          <Input 
+            value={formData.title}
+            onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
+          />
         </div>
 
         <div>
           <label className="block text-sm font-medium mb-1">Description</label>
-          <Textarea {...register('description')} />
-          {errors.description && (
-            <p className="text-red-500 text-sm mt-1">{errors.description.message}</p>
-          )}
+          <Textarea 
+            value={formData.description}
+            onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+          />
         </div>
 
         <div>
@@ -701,19 +647,18 @@ export function QuizEditor({ initialData }: QuizEditorProps) {
           <Input 
             type="number" 
             min="1"
-            {...register('time_limit')} 
+            value={formData.timeLimit}
+            onChange={(e) => setFormData((prev) => ({ ...prev, timeLimit: e.target.value }))}
           />
-          {errors.time_limit && (
-            <p className="text-red-500 text-sm mt-1">{errors.time_limit.message}</p>
-          )}
         </div>
       </div>
 
       <Button 
         type="submit" 
-        disabled={uploading || isSubmitting}
+        disabled={isSubmitting || !formData.title || !formData.category}
+        className="w-full"
       >
-        {uploading ? 'Uploading...' : isSubmitting ? 'Saving...' : initialData ? 'Update Quiz' : 'Create Quiz'}
+        {isSubmitting ? 'Saving...' : quizId ? 'Update Quiz' : 'Create Quiz'}
       </Button>
 
       {/* Create Category Dialog */}

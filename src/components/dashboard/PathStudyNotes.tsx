@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import {
   FileText,
@@ -31,19 +32,19 @@ interface StudyNote {
 interface PathStudyNotesProps {
   pathId: string
   currentStageId?: string
+  notes: StudyNote[]
   onSaveNote: (note: Omit<StudyNote, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>
   onDeleteNote: (noteId: string) => Promise<void>
   onShareNote: (noteId: string) => Promise<void>
 }
 
 export function PathStudyNotes({
-  pathId,
   currentStageId,
+  notes,
   onSaveNote,
   onDeleteNote,
   onShareNote
 }: PathStudyNotesProps) {
-  const [notes, setNotes] = useState<StudyNote[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [isEditing, setIsEditing] = useState(false)
@@ -88,7 +89,7 @@ export function PathStudyNotes({
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to save note",
+        description: error instanceof Error ? error.message : "Failed to save note",
         variant: "destructive",
       })
     }

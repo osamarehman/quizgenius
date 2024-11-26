@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase/client'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 
@@ -41,7 +40,8 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ quiz })
-  } catch (error) {
+  } catch (err) {
+    console.error('Error creating quiz:', err);
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }

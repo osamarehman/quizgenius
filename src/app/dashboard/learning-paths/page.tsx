@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { PathCard } from "@/components/dashboard/PathCard"
 import { LearningPathFilters } from "@/components/dashboard/LearningPathFilters"
 import { useToast } from "@/hooks/use-toast"
@@ -20,21 +20,22 @@ export default function LearningPathsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const { toast } = useToast()
 
-  const loadPaths = async () => {
+  const loadPaths = useCallback(async () => {
     try {
-      const { data } = await supabase.from('learning_paths').select('*')
-      setPaths(data || [])
-    } catch (err) {
-      console.error('Error loading paths:', err)
-      toast({
-        title: "Error",
-        description: "Failed to load learning paths",
-        variant: "destructive",
-      })
+      const { data: paths, error } = await supabase
+        .from('learning_paths')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setPaths(paths);
+    } catch (error) {
+      console.error('Error loading paths:', error);
+      toast.error('Failed to load learning paths');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  }, [setPaths, toast]);
 
   useEffect(() => {
     loadPaths()

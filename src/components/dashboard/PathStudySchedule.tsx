@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
   Calendar as CalendarIcon,
-  Clock,
   Bell,
   BellOff,
   CheckCircle,
@@ -34,9 +33,7 @@ interface PathStudyScheduleProps {
 }
 
 export function PathStudySchedule({
-  pathId,
   sessions,
-  onAddSession,
   onToggleReminder,
   onMarkComplete
 }: PathStudyScheduleProps) {

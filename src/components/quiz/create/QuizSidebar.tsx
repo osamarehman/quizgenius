@@ -10,12 +10,12 @@ import {
 } from '@/components/ui/tabs'
 import { 
   Layout, 
-  Image, 
   FileText, 
   Database,
   PlusCircle
 } from 'lucide-react'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export function QuizSidebar() {
   return (
@@ -26,7 +26,13 @@ export function QuizSidebar() {
             <Layout className="h-4 w-4" />
           </TabsTrigger>
           <TabsTrigger value="media">
-            <Image className="h-4 w-4" />
+            <Image
+              src="/image-url"
+              alt="Media preview"
+              width={20}
+              height={20}
+              className="h-4 w-4"
+            />
           </TabsTrigger>
           <TabsTrigger value="templates">
             <FileText className="h-4 w-4" />
@@ -64,11 +70,31 @@ export function QuizSidebar() {
             <TabsContent value="media" className="m-0">
               <div className="space-y-4">
                 <Button variant="outline" className="w-full justify-start">
-                  <Image className="mr-2 h-4 w-4" />
+                  <Image
+                    src="/image-url"
+                    alt="Upload image"
+                    width={20}
+                    height={20}
+                    className="mr-2 h-4 w-4"
+                  />
                   Upload Image
                 </Button>
                 <div className="grid grid-cols-2 gap-2">
                   {/* Media library preview grid */}
+                  <Image
+                    src="/image-url"
+                    alt="Media preview"
+                    width={200}
+                    height={150}
+                    className="w-full h-auto rounded-md"
+                  />
+                  <Image
+                    src="/image-url"
+                    alt="Media preview"
+                    width={200}
+                    height={150}
+                    className="w-full h-auto rounded-md"
+                  />
                 </div>
               </div>
             </TabsContent>

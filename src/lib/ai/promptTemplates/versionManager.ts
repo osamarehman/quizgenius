@@ -1,12 +1,6 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { PromptTemplate } from '../types'
 
-interface VersionMetadata {
-  version: number
-  changes: string
-  createdAt: string
-  createdBy: string
-}
 
 export async function createTemplateVersion(
   templateId: string,

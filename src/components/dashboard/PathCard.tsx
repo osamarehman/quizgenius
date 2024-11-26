@@ -80,11 +80,11 @@ export function PathCard({ path }: PathCardProps) {
 
       // Use replace to prevent going back to enrollment state
       router.replace(`/dashboard/learning-paths/${path.id}`)
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error enrolling in path:', error)
       toast({
         title: "Error",
-        description: error.message || "Failed to enroll in path",
+        description: error instanceof Error ? error.message : "Failed to enroll in path",
         variant: "destructive",
       })
     } finally {

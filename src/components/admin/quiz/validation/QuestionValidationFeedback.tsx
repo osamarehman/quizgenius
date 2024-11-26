@@ -16,7 +16,6 @@ import {
 import { 
   Question,
   ValidationResult, 
-  ValidationError, 
   ValidationCategory,
   ValidationSeverity 
 } from '@/lib/ai/types'

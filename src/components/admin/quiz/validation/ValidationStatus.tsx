@@ -4,13 +4,10 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { 
-  AlertCircle, 
   CheckCircle, 
-  Info, 
-  AlertTriangle,
   Loader2
 } from 'lucide-react'
-import { ValidationResult, ValidationSeverity } from '@/lib/ai/types'
+import { ValidationResult } from '@/lib/ai/types'
 
 interface ValidationStatusProps {
   results: ValidationResult[]
@@ -28,17 +25,6 @@ export function ValidationStatus({
   const totalErrors = results.reduce((sum, r) => sum + r.errors.length, 0)
   const totalWarnings = results.reduce((sum, r) => sum + r.warnings.length, 0)
   const totalInfo = results.reduce((sum, r) => sum + r.info.length, 0)
-
-  const getSeverityIcon = (severity: ValidationSeverity) => {
-    switch (severity) {
-      case 'error':
-        return <AlertCircle className="h-4 w-4 text-red-500" />
-      case 'warning':
-        return <AlertTriangle className="h-4 w-4 text-yellow-500" />
-      case 'info':
-        return <Info className="h-4 w-4 text-blue-500" />
-    }
-  }
 
   return (
     <Card className="p-4 space-y-4">

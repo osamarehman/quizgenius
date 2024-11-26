@@ -27,7 +27,6 @@ interface PathPrerequisitesProps {
 }
 
 export function PathPrerequisites({
-  pathId,
   prerequisites,
   requiredLevel,
   userLevel

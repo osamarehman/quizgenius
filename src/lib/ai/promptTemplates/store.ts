@@ -12,7 +12,7 @@ interface PromptTemplateStore {
   deleteTemplate: (id: string) => Promise<void>
 }
 
-export const usePromptTemplates = create<PromptTemplateStore>((set, get) => ({
+export const usePromptTemplates = create<PromptTemplateStore>((set) => ({
   templates: [],
   isLoading: false,
   error: null,

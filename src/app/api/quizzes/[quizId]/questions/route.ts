@@ -47,7 +47,8 @@ export async function POST(
     }
 
     return NextResponse.json({ question })
-  } catch (error) {
+  } catch (err) {
+    console.error('Error creating question:', err);
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }

@@ -52,7 +52,8 @@ export function RegisterForm() {
       })
       // Redirect to dashboard with setup parameter
       router.push('/dashboard?setup=true')
-    } catch (error) {
+    } catch (registrationError) {
+      console.error('Registration failed:', registrationError)
       toast({
         variant: "destructive",
         title: "Error",

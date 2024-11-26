@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -15,17 +14,36 @@ import {
 } from "@/components/ui/select"
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
+interface EducationSystem {
+  id: string
+  name: string
+}
+
+interface Category {
+  id: string
+  name: string
+  education_system_id: string
+}
+
+interface ExistingQuiz {
+  id: string
+  title: string
+  created_at: string
+}
+
 interface QuizSetupProps {
   mode: 'new' | 'existing'
-  data: {
-    title: string
-    description: string
-    educationSystem: string
-    category: string
-    quizId?: string
-    difficulty?: string
-  }
-  onUpdate: (data: any) => void
+  data: QuizData
+  onUpdate: (data: Partial<QuizData>) => void
+}
+
+interface QuizData {
+  title: string
+  description: string
+  educationSystem: string
+  category: string
+  quizId?: string
+  difficulty?: string
 }
 
 const difficultyOptions = [
@@ -36,50 +54,65 @@ const difficultyOptions = [
 ];
 
 export function QuizSetup({ mode, data, onUpdate }: QuizSetupProps) {
-  const [existingQuizzes, setExistingQuizzes] = useState<any[]>([])
-  const [educationSystems, setEducationSystems] = useState<any[]>([])
-  const [categories, setCategories] = useState<any[]>([])
+  const [existingQuizzes, setExistingQuizzes] = useState<ExistingQuiz[]>([])
+  const [educationSystems, setEducationSystems] = useState<EducationSystem[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const supabase = createClientComponentClient()
 
+  const fetchEducationSystems = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('education_systems')
+        .select('*')
+        .order('name');
+      if (error) throw error;
+      setEducationSystems(data);
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Error fetching education systems:', error);
+    }
+  }, [supabase]);
+
+  const fetchExistingQuizzes = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('quizzes')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setExistingQuizzes(data);
+    } catch (error) {
+      console.error('Error fetching quizzes:', error);
+    }
+  }, [supabase]);
+
   useEffect(() => {
     if (mode === 'existing') {
-      fetchExistingQuizzes()
+      fetchExistingQuizzes();
     }
-    fetchEducationSystems()
-  }, [mode])
+    fetchEducationSystems();
+  }, [fetchEducationSystems, fetchExistingQuizzes, mode]);
+
+  const fetchCategories = useCallback(async (systemId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('education_system_id', systemId)
+        .order('name');
+      if (error) throw error;
+      setCategories(data);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  }, [supabase]);
 
   useEffect(() => {
     if (data.educationSystem) {
-      fetchCategories(data.educationSystem)
+      fetchCategories(data.educationSystem);
     }
-  }, [data.educationSystem])
-
-  const fetchExistingQuizzes = async () => {
-    const { data: quizzes } = await supabase
-      .from('quizzes')
-      .select('*')
-      .order('created_at', { ascending: false })
-    setExistingQuizzes(quizzes || [])
-  }
-
-  const fetchEducationSystems = async () => {
-    const { data: systems } = await supabase
-      .from('education_systems')
-      .select('*')
-      .order('name')
-    setEducationSystems(systems || [])
-    setIsLoading(false)
-  }
-
-  const fetchCategories = async (systemId: string) => {
-    const { data: cats } = await supabase
-      .from('categories')
-      .select('*')
-      .eq('education_system_id', systemId)
-      .order('name')
-    setCategories(cats || [])
-  }
+  }, [fetchCategories, data.educationSystem]);
 
   if (isLoading) {
     return <div>Loading...</div>
@@ -197,4 +230,4 @@ export function QuizSetup({ mode, data, onUpdate }: QuizSetupProps) {
       </div>
     </Card>
   )
-} 
+}

@@ -37,7 +37,8 @@ export function LoginForm() {
       setIsLoading(true)
       // TODO: Implement login logic with Supabase
       router.push('/dashboard')
-    } catch (error) {
+    } catch (loginError) {
+      console.error('Login failed:', loginError)
       toast({
         variant: "destructive",
         title: "Error",

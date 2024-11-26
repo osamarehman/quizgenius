@@ -4,25 +4,49 @@ import { createContext, useContext, useState, useCallback } from 'react'
 import { Achievement, achievementService } from '@/lib/services/achievementService'
 import { AchievementNotification } from '@/components/achievements/AchievementNotification'
 
-interface AchievementContextType {
-  checkAchievement: (action: string, data: any) => Promise<void>
+export interface AchievementData {
+  pathId: string
+  interactionType: string
+  summaryCount?: number
+  quizCount?: number
+  perfectScores?: number
+  helpCount?: number
+  loginStreak?: number
 }
 
-const AchievementContext = createContext<AchievementContextType | undefined>(undefined)
+interface AchievementContextType {
+  checkAchievement: (type: string, data: AchievementData) => Promise<void>
+  achievements: Achievement[]
+  loading: boolean
+}
+
+const AchievementContext = createContext<AchievementContextType>({
+  checkAchievement: async () => {},
+  achievements: [],
+  loading: false
+})
 
 export function AchievementProvider({ children }: { children: React.ReactNode }) {
   const [currentAchievement, setCurrentAchievement] = useState<Achievement | null>(null)
+  const [achievements, setAchievements] = useState<Achievement[]>([])
+  const [loading, setLoading] = useState(false)
 
-  const checkAchievement = useCallback(async (action: string, data: any) => {
+  const checkAchievement = useCallback(async (type: string, data: AchievementData) => {
     const userId = 'current-user-id' // Get this from your auth context
-    const achievement = await achievementService.checkAchievements(userId, action, data)
-    if (achievement) {
-      setCurrentAchievement(achievement)
+    setLoading(true)
+    try {
+      const achievement = await achievementService.checkAchievements(userId, type, data)
+      if (achievement) {
+        setCurrentAchievement(achievement)
+        setAchievements(prev => [...prev, achievement])
+      }
+    } finally {
+      setLoading(false)
     }
   }, [])
 
   return (
-    <AchievementContext.Provider value={{ checkAchievement }}>
+    <AchievementContext.Provider value={{ checkAchievement, achievements, loading }}>
       {children}
       <AchievementNotification 
         achievement={currentAchievement}

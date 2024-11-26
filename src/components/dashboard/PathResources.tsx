@@ -11,8 +11,7 @@ import {
   BookOpen,
   Video,
   Link as LinkIcon,
-  Search,
-  Filter
+  Search
 } from 'lucide-react'
 import { Input } from "@/components/ui/input"
 import {

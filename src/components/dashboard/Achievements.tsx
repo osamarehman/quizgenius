@@ -38,7 +38,15 @@ const ACHIEVEMENT_CATEGORIES = {
 } as const
 
 // Achievement Types with rewards
-const ACHIEVEMENT_TYPES = {
+export type AchievementType = {
+  description: string
+  rewards: {
+    xp: number
+    badge: string
+  }
+}
+
+export const ACHIEVEMENT_TYPES: { [key: string]: AchievementType } = {
   QUIZ_STREAK: {
     description: 'Complete quizzes consecutively',
     rewards: { xp: 100, badge: 'Consistent Learner' }
@@ -49,7 +57,7 @@ const ACHIEVEMENT_TYPES = {
   },
   SUBJECT_MASTERY: {
     description: 'Master specific subjects',
-    rewards: { xp: 500, title: 'Subject Expert' }
+    rewards: { xp: 500, badge: 'Subject Expert' }
   },
   QUICK_LEARNER: {
     description: 'Complete quizzes quickly',
@@ -61,9 +69,9 @@ const ACHIEVEMENT_TYPES = {
   },
   HELP_OTHERS: {
     description: 'Help other students',
-    rewards: { xp: 300, title: 'Community Helper' }
+    rewards: { xp: 300, badge: 'Community Helper' }
   }
-} as const
+}
 
 interface Achievement {
   id: string
@@ -179,7 +187,6 @@ export function Achievements({ achievements, onAchievementClick }: AchievementsP
           {filteredAchievements.map((achievement) => {
             const Icon = icons[achievement.icon]
             const category = ACHIEVEMENT_CATEGORIES[achievement.category]
-            const type = ACHIEVEMENT_TYPES[achievement.type]
             const progressPercentage = (achievement.progress / achievement.total) * 100
             const isRecentlyUnlocked = recentlyUnlocked.includes(achievement.id)
 

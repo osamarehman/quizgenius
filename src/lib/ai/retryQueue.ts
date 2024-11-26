@@ -9,7 +9,7 @@ interface QueueItem<T> {
 }
 
 export class RetryQueue {
-  private queue: QueueItem<any>[] = []
+  private queue: QueueItem<unknown>[] = []
   private processing = false
   private concurrentLimit: number
   private retryOptions: Partial<RetryOptions>

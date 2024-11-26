@@ -5,9 +5,10 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import {Badge} from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { History, Save, ChevronDown, ChevronUp } from 'lucide-react'
-import { createTemplateVersion, getTemplateVersions } from '@/lib/ai/promptTemplates/versionManager'
+import { createTemplateVersion } from '@/lib/ai/promptTemplates/versionManager'
 import { formatDistanceToNow } from 'date-fns'
 import { PromptTemplate } from '@/lib/ai/types'
 
@@ -30,18 +31,18 @@ export function TemplateVersioning({ templateId, onVersionSelect }: TemplateVers
   const [expandedVersions, setExpandedVersions] = useState(false)
   const { toast } = useToast()
 
-  const loadVersions = async () => {
-    try {
-      const versionHistory = await getTemplateVersions(templateId)
-      setVersions(versionHistory)
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load version history",
-        variant: "destructive",
-      })
-    }
-  }
+  // const loadVersions = async () => {
+  //   try {
+  //     const versionHistory = await getTemplateVersions(templateId)
+  //     setVersions(versionHistory)
+  //   } catch (error) {
+  //     toast({
+  //       title: "Error",
+  //       description: "Failed to load version history",
+  //       variant: "destructive",
+  //     })
+  //   }
+  // }
 
   const createNewVersion = async () => {
     try {
@@ -53,7 +54,8 @@ export function TemplateVersioning({ templateId, onVersionSelect }: TemplateVers
         title: "Success",
         description: "New version created successfully",
       })
-    } catch (error) {
+    } catch (versionError) {
+      console.error('Failed to create new version:', versionError)
       toast({
         title: "Error",
         description: "Failed to create new version",

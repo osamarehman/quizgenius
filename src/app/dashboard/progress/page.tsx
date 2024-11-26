@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from "@/components/ui/card"
 import { useUser } from '@/lib/stores/useUser'
 import { LoadingSpinner } from '@/components/ui/loading'
@@ -19,8 +19,10 @@ import { format } from 'date-fns'
 interface QuizAttempt {
   id: string
   quiz_id: string
+  user_id: string
   score: number
   completed_at: string
+  created_at: string
   quiz: {
     title: string
     category: {
@@ -36,18 +38,13 @@ interface SubjectPerformance {
 }
 
 export default function ProgressPage() {
-  const { profile, isLoading, fetchProfile } = useUser()
+  const { profile, isLoading: isLoadingUser, fetchProfile } = useUser()
   const [quizAttempts, setQuizAttempts] = useState<QuizAttempt[]>([])
   const [subjectPerformance, setSubjectPerformance] = useState<SubjectPerformance[]>([])
   const [isLoadingData, setIsLoadingData] = useState(true)
   const supabase = createClientComponentClient()
 
-  useEffect(() => {
-    fetchProfile()
-    fetchQuizAttempts()
-  }, [fetchProfile, fetchQuizAttempts])
-
-  const fetchQuizAttempts = async () => {
+  const fetchQuizAttempts = useCallback(async () => {
     try {
       const { data: attempts, error } = await supabase
         .from('quiz_attempts')
@@ -69,7 +66,7 @@ export default function ProgressPage() {
     } finally {
       setIsLoadingData(false)
     }
-  }
+  }, [supabase])
 
   const calculateSubjectPerformance = (attempts: QuizAttempt[]) => {
     const subjectStats: Record<string, { total: number, count: number }> = {}
@@ -92,7 +89,12 @@ export default function ProgressPage() {
     setSubjectPerformance(performance)
   }
 
-  if (isLoading || isLoadingData) {
+  useEffect(() => {
+    fetchProfile()
+    fetchQuizAttempts()
+  }, [fetchProfile, fetchQuizAttempts])
+
+  if (isLoadingUser || isLoadingData) {
     return <LoadingSpinner />
   }
 
@@ -105,8 +107,6 @@ export default function ProgressPage() {
     score: attempt.score
   })).reverse()
 
-  const latestAttempt = quizAttempts[0]
-  const lastAttemptDate = new Date(latestAttempt?.completed_at || Date.now())
 
   return (
     <div className="p-6 space-y-6">
@@ -211,7 +211,7 @@ function calculateStreak(attempts: QuizAttempt[]): number {
 
   let streak = 0
   let currentDate = new Date()
-  let lastAttemptDate = new Date(attempts[0].completed_at)
+  const lastAttemptDate = new Date(attempts[0].completed_at)
 
   // If no attempt today, check if there was one yesterday
   if (format(currentDate, 'yyyy-MM-dd') !== format(lastAttemptDate, 'yyyy-MM-dd')) {

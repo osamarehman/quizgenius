@@ -5,6 +5,7 @@ import { AIError } from '@/lib/ai/types'
 interface UseValidationErrorBoundaryOptions {
   onError?: (error: Error) => void
   onRetry?: () => Promise<void>
+  onReset?: () => void
 }
 
 export function useValidationErrorBoundary(options: UseValidationErrorBoundaryOptions = {}) {
@@ -13,9 +14,9 @@ export function useValidationErrorBoundary(options: UseValidationErrorBoundaryOp
   const { toast } = useToast()
 
   const handleError = useCallback((error: Error) => {
-    setError(error)
-    options.onError?.(error)
-
+    if (options.onError) {
+      options.onError(error)
+    }
     if (error instanceof AIError && error.details?.category === 'validation') {
       toast({
         title: "Validation Error",
@@ -29,7 +30,15 @@ export function useValidationErrorBoundary(options: UseValidationErrorBoundaryOp
         variant: "destructive",
       })
     }
-  }, [options.onError, toast])
+    setError(error)
+  }, [options, toast])
+
+  const resetError = useCallback(() => {
+    if (options.onReset) {
+      options.onReset()
+    }
+    setError(null)
+  }, [options])
 
   const retry = useCallback(async () => {
     if (!options.onRetry) return
@@ -48,13 +57,13 @@ export function useValidationErrorBoundary(options: UseValidationErrorBoundaryOp
     } finally {
       setIsRetrying(false)
     }
-  }, [options.onRetry, handleError, toast])
+  }, [options, handleError, toast])
 
   return {
     error,
     isRetrying,
     handleError,
     retry,
-    clearError: () => setError(null)
+    resetError,
   }
 } 

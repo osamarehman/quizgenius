@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useToast } from '@/hooks/use-toast'
-import { AIError, ErrorCode, RetryOptions } from '@/lib/ai/errorHandling'
+import { AIError, ErrorCode } from '@/lib/ai/errorHandling'
 
 interface UseAIErrorHandlingOptions {
   maxRetries?: number

@@ -1,6 +1,6 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
-export interface Achievement {
+interface Achievement {
   id: string
   title: string
   description: string
@@ -15,85 +15,143 @@ export interface Achievement {
   }
 }
 
+interface AchievementData {
+  action: string
+  data: {
+    score?: number
+    timeSpent?: number
+    pathId?: string
+    progress?: number
+    metadata?: Record<string, unknown>
+  }
+}
+
+interface AchievementResponse {
+  achievement: Achievement | null
+  progress?: {
+    current: number
+    target: number
+  }
+}
+
+interface UserData {
+  questionCount: number
+  streakDays: number
+  perfectScores: number
+  [key: string]: number | boolean | string | Date | undefined
+}
+
+interface AchievementCondition {
+  type: string
+  value: number
+  customCheck?: (userData: UserData) => boolean
+}
+
+interface Achievement {
+  id: string
+  name: string
+  description: string
+  icon: string
+  condition: AchievementCondition
+  reward: {
+    type: string
+    value: number | string
+  }
+  progress: number
+  earned: boolean
+  earnedAt?: Date
+}
+
+interface AchievementProgress {
+  userId: string
+  achievementId: string
+  progress: number
+  completed: boolean
+  completedAt?: Date
+  metadata?: Record<string, unknown>
+}
+
+interface AchievementMetadata {
+  type: string
+  value: string | number
+  timestamp: Date
+  details?: Record<string, unknown>
+}
+
+interface AchievementEvent {
+  type: string
+  value: number | string
+  timestamp: string
+  metadata?: Record<string, unknown>
+}
+
+interface QuizAttempt {
+  score: number;
+  quiz: {
+    category: {
+      name: string;
+    };
+  };
+}
+
 class AchievementService {
   private supabase = createClientComponentClient()
 
-  async checkAchievements(userId: string, action: string, data: any): Promise<Achievement | null> {
-    // Fetch user's current achievements
-    const { data: userAchievements } = await this.supabase
+  async checkAchievements(userId: string, action: string, data: AchievementData): Promise<AchievementResponse | null> {
+    const { data: currentAchievements } = await this.supabase
       .from('user_achievements')
-      .select('*')
+      .select('achievement_id, unlocked_at')
       .eq('user_id', userId)
 
-    // Check for new achievements based on action
+    if (!currentAchievements) return null
+
     switch (action) {
       case 'COMPLETE_QUIZ':
-        return this.checkQuizAchievements(userId, data, userAchievements)
+        return this.checkQuizAchievements(userId, data.data, currentAchievements)
       case 'LOGIN_STREAK':
-        return this.checkLoginStreakAchievements(userId, data, userAchievements)
+        return this.checkLoginStreakAchievements(userId, data.data, currentAchievements)
       case 'SUBJECT_MASTERY':
-        return this.checkSubjectMasteryAchievements(userId, data, userAchievements)
-      case 'PATH_ACHIEVEMENT':
-        return this.checkPathAchievements(userId, data, userAchievements)
-      case 'SPEED_CHECK':
-        return this.checkSpeedAchievements(userId, data, userAchievements || [])
-      case 'CONSISTENCY_CHECK':
-        return this.checkConsistencyAchievements(userId, data, userAchievements || [])
-      case 'MILESTONE_CHECK':
-        return this.checkMilestoneAchievements(userId, data, userAchievements || [])
+        return this.checkSubjectMasteryAchievements(userId, data.data, currentAchievements)
+      case 'COMPLETE_PATH':
+        return this.checkPathAchievements(userId, data.data, currentAchievements)
+      case 'SPEED_COMPLETION':
+        return this.checkSpeedAchievements(userId, data.data, currentAchievements)
+      case 'CONSISTENCY':
+        return this.checkConsistencyAchievements(userId, data.data, currentAchievements)
+      case 'MILESTONE':
+        return this.checkMilestoneAchievements(userId, data.data, currentAchievements)
       default:
         return null
     }
   }
 
-  private async checkQuizAchievements(userId: string, data: any, currentAchievements: any[]): Promise<Achievement | null> {
-    const { score, timeSpent } = data
+  private async checkQuizAchievements(
+    userId: string, 
+    data: AchievementData['data'], 
+    currentAchievements: { achievement_id: string }[]
+  ): Promise<AchievementResponse | null> {
+    const { score } = data
 
-    // Perfect Score Achievement
     if (score === 100) {
-      const perfectScoreAchievement = {
-        id: 'perfect-score',
-        title: 'Perfect Score',
-        description: 'Get 100% on a quiz',
-        type: 'PERFECT_SCORE',
-        category: 'mastery',
-        progress: 1,
-        total: 1,
-        unlocked: true,
-        reward: {
-          type: 'xp',
-          value: 200
-        }
-      }
-
-      // Check if already unlocked
-      if (!currentAchievements.find(a => a.achievement_id === 'perfect-score')) {
-        await this.unlockAchievement(userId, perfectScoreAchievement)
-        return perfectScoreAchievement
+      const perfectScoreAchievement = await this.processAchievement('perfect-score', userId, currentAchievements)
+      if (perfectScoreAchievement) {
+        await this.grantXP(userId, 100)
+        return { achievement: perfectScoreAchievement }
       }
     }
 
-    // Add more achievement checks here
+    if (score && score >= 90) {
+      const highScoreAchievement = await this.processAchievement('high-score', userId, currentAchievements)
+      if (highScoreAchievement) {
+        await this.grantXP(userId, 50)
+        return { achievement: highScoreAchievement }
+      }
+    }
+
     return null
   }
 
-  private async unlockAchievement(userId: string, achievement: Achievement) {
-    // Record the achievement
-    await this.supabase
-      .from('user_achievements')
-      .insert({
-        user_id: userId,
-        achievement_id: achievement.id,
-        unlocked_at: new Date().toISOString()
-      })
-
-    // Grant rewards
-    if (achievement.reward.type === 'xp') {
-      await this.grantXP(userId, achievement.reward.value as number)
-    }
-  }
-
-  private async grantXP(userId: string, amount: number) {
+  private async grantXP(userId: string, amount: number): Promise<void> {
     const { data: profile } = await this.supabase
       .from('profiles')
       .select('xp')
@@ -106,15 +164,47 @@ class AchievementService {
       .eq('id', userId)
   }
 
-  private async checkLoginStreakAchievements(userId: string, data: any, currentAchievements: any[]): Promise<Achievement | null> {
+  private async processAchievement(
+    achievementId: string,
+    userId: string,
+    currentAchievements: { achievement_id: string }[]
+  ): Promise<Achievement | null> {
+    if (currentAchievements.find(a => a.achievement_id === achievementId)) {
+      return null
+    }
+
+    const { data: achievement } = await this.supabase
+      .from('achievements')
+      .select()
+      .eq('id', achievementId)
+      .single()
+
+    if (achievement) {
+      await this.supabase
+        .from('user_achievements')
+        .insert({
+          user_id: userId,
+          achievement_id: achievementId,
+          unlocked_at: new Date().toISOString()
+        })
+
+      return achievement
+    }
+
+    return null
+  }
+
+  private async checkLoginStreakAchievements(
+    userId: string, 
+    data: AchievementData['data'], 
+    currentAchievements: { achievement_id: string }[]
+  ): Promise<AchievementResponse | null> {
     const { streak } = data
     
-    // Daily Scholar Achievement (7-day streak)
     if (streak === 7) {
       return this.processAchievement('daily-scholar', userId, currentAchievements)
     }
     
-    // Streak Master Achievement (30-day streak)
     if (streak === 30) {
       return this.processAchievement('streak-master', userId, currentAchievements)
     }
@@ -122,10 +212,13 @@ class AchievementService {
     return null
   }
 
-  private async checkSubjectMasteryAchievements(userId: string, data: any, currentAchievements: any[]): Promise<Achievement | null> {
-    const { subject, score } = data
+  private async checkSubjectMasteryAchievements(
+    userId: string, 
+    data: AchievementData['data'], 
+    currentAchievements: { achievement_id: string }[]
+  ): Promise<AchievementResponse | null> {
+    const { subject } = data
     
-    // Get high scores in this subject
     const { data: scores } = await this.supabase
       .from('quiz_attempts')
       .select('score')
@@ -142,37 +235,18 @@ class AchievementService {
     return null
   }
 
-  private async processAchievement(achievementId: string, userId: string, currentAchievements: any[]): Promise<Achievement | null> {
-    // Check if already unlocked
-    if (currentAchievements.find(a => a.achievement_id === achievementId)) {
-      return null
-    }
-    
-    // Get achievement details
-    const { data: achievement } = await this.supabase
-      .from('achievements')
-      .select('*')
-      .eq('id', achievementId)
-      .single()
-      
-    if (achievement) {
-      await this.unlockAchievement(userId, achievement)
-      return achievement
-    }
-    
-    return null
-  }
+  private async checkPathAchievements(
+    userId: string, 
+    data: AchievementData['data'], 
+    currentAchievements: { achievement_id: string }[]
+  ): Promise<AchievementResponse | null> {
+    const { pathId, progress, completionTime } = data
 
-  private async checkPathAchievements(userId: string, data: any, currentAchievements: any[]): Promise<Achievement | null> {
-    const { pathId, stageId, progress, completionTime } = data
-
-    // Quick Stage completion achievement
-    if (completionTime && completionTime < 600) { // 10 minutes in seconds
+    if (completionTime && completionTime < 600) { 
       const quickStageAchievement = await this.processAchievement('quick-stage', userId, currentAchievements)
       if (quickStageAchievement) return quickStageAchievement
     }
 
-    // Perfect Path achievement (all stages with 100% score)
     if (progress === 100) {
       const { data: pathProgress } = await this.supabase
         .from('user_path_progress')
@@ -187,7 +261,6 @@ class AchievementService {
       }
     }
 
-    // Path Mastery achievement (complete 3 paths)
     const { data: completedPaths } = await this.supabase
       .from('user_path_progress')
       .select('path_id')
@@ -200,7 +273,6 @@ class AchievementService {
       if (pathMasteryAchievement) return pathMasteryAchievement
     }
 
-    // Daily Progress achievement (complete stages on consecutive days)
     const { data: recentProgress } = await this.supabase
       .from('user_path_progress')
       .select('completed_at')
@@ -221,16 +293,18 @@ class AchievementService {
     return null
   }
 
-  private async checkSpeedAchievements(userId: string, data: any, currentAchievements: any[]): Promise<Achievement | null> {
+  private async checkSpeedAchievements(
+    userId: string, 
+    data: AchievementData['data'], 
+    currentAchievements: { achievement_id: string }[]
+  ): Promise<AchievementResponse | null> {
     const { completionTime, score } = data
 
-    // Speed Demon achievement (complete quiz under 5 minutes with 90%+ score)
     if (completionTime < 300 && score >= 90) {
       const speedDemonAchievement = await this.processAchievement('speed-demon', userId, currentAchievements)
       if (speedDemonAchievement) return speedDemonAchievement
     }
 
-    // Quick Learner achievement (complete 3 quizzes in a day)
     const today = new Date().toISOString().split('T')[0]
     const { data: todayAttempts } = await this.supabase
       .from('quiz_attempts')
@@ -245,22 +319,23 @@ class AchievementService {
     return null
   }
 
-  private async checkConsistencyAchievements(userId: string, data: any, currentAchievements: any[]): Promise<Achievement | null> {
+  private async checkConsistencyAchievements(
+    userId: string, 
+    data: AchievementData['data'], 
+    currentAchievements: { achievement_id: string }[]
+  ): Promise<AchievementResponse | null> {
     const { streak } = data
 
-    // Weekly Warrior achievement (7-day streak)
     if (streak >= 7) {
       const weeklyWarriorAchievement = await this.processAchievement('weekly-warrior', userId, currentAchievements)
       if (weeklyWarriorAchievement) return weeklyWarriorAchievement
     }
 
-    // Monthly Master achievement (30-day streak)
     if (streak >= 30) {
       const monthlyMasterAchievement = await this.processAchievement('monthly-master', userId, currentAchievements)
       if (monthlyMasterAchievement) return monthlyMasterAchievement
     }
 
-    // Check for improvement streak
     const { data: recentScores } = await this.supabase
       .from('quiz_attempts')
       .select('score')
@@ -279,22 +354,23 @@ class AchievementService {
     return null
   }
 
-  private async checkMilestoneAchievements(userId: string, data: any, currentAchievements: any[]): Promise<Achievement | null> {
+  private async checkMilestoneAchievements(
+    userId: string, 
+    data: AchievementData['data'], 
+    currentAchievements: { achievement_id: string }[]
+  ): Promise<AchievementResponse | null> {
     const { totalQuizzes, averageScore } = data
 
-    // Quiz Milestone achievements
     if (totalQuizzes >= 100) {
       const centuryAchievement = await this.processAchievement('century-milestone', userId, currentAchievements)
       if (centuryAchievement) return centuryAchievement
     }
 
-    // High Performance achievement (maintain 90%+ average over 20 quizzes)
     if (totalQuizzes >= 20 && averageScore >= 90) {
       const highPerformerAchievement = await this.processAchievement('high-performer', userId, currentAchievements)
       if (highPerformerAchievement) return highPerformerAchievement
     }
 
-    // Subject Mastery achievements
     const { data: subjectScores } = await this.supabase
       .from('quiz_attempts')
       .select(`
@@ -308,7 +384,7 @@ class AchievementService {
     if (subjectScores) {
       const subjectStats: Record<string, { total: number, count: number }> = {}
       
-      subjectScores.forEach((attempt: any) => {
+      subjectScores.forEach((attempt: QuizAttempt) => {
         const subject = attempt.quiz.category.name
         if (!subjectStats[subject]) {
           subjectStats[subject] = { total: 0, count: 0 }
@@ -317,7 +393,6 @@ class AchievementService {
         subjectStats[subject].count++
       })
 
-      // Check for subject mastery (95%+ average in a subject with at least 10 attempts)
       for (const [subject, stats] of Object.entries(subjectStats)) {
         if (stats.count >= 10 && (stats.total / stats.count) >= 95) {
           const subjectMasteryAchievement = await this.processAchievement(
@@ -332,6 +407,111 @@ class AchievementService {
 
     return null
   }
+
+  async updateAchievementProgress(
+    userId: string,
+    achievementId: string,
+    progress: number,
+    completed: boolean,
+    metadata?: Record<string, unknown>
+  ): Promise<AchievementProgress> {
+    const { data: currentProgress } = await this.supabase
+      .from('user_achievements')
+      .select('progress, completed, completed_at')
+      .eq('user_id', userId)
+      .eq('achievement_id', achievementId)
+      .single()
+
+    if (currentProgress) {
+      await this.supabase
+        .from('user_achievements')
+        .update({
+          progress,
+          completed,
+          completed_at: completed ? new Date().toISOString() : null,
+          metadata: JSON.stringify(metadata)
+        })
+        .eq('user_id', userId)
+        .eq('achievement_id', achievementId)
+    } else {
+      await this.supabase
+        .from('user_achievements')
+        .insert({
+          user_id: userId,
+          achievement_id: achievementId,
+          progress,
+          completed,
+          completed_at: completed ? new Date().toISOString() : null,
+          metadata: JSON.stringify(metadata)
+        })
+    }
+
+    return {
+      userId,
+      achievementId,
+      progress,
+      completed,
+      completedAt: completed ? new Date() : undefined,
+      metadata
+    }
+  }
+
+  async updateAchievementMetadata(
+    userId: string,
+    achievementId: string,
+    metadata: AchievementMetadata
+  ): Promise<void> {
+    await this.supabase
+      .from('user_achievements')
+      .update({
+        metadata: JSON.stringify(metadata)
+      })
+      .eq('user_id', userId)
+      .eq('achievement_id', achievementId)
+  }
+
+  async processAchievementEvent(
+    userId: string,
+    event: AchievementEvent
+  ): Promise<AchievementResponse | null> {
+    const { type, value, metadata } = event
+    const { data: achievements } = await this.supabase
+      .from('achievements')
+      .select('*')
+      .eq('type', type)
+      .single()
+
+    if (!achievements) return null
+
+    const progress = typeof value === 'number' ? value / achievements.condition.value : 0
+    if (progress >= 1) {
+      await this.updateAchievementProgress(userId, achievements.id, progress, true, metadata)
+      return {
+        achievement: achievements,
+        progress: {
+          current: value as number,
+          target: achievements.condition.value
+        }
+      }
+    }
+
+    return null
+  }
 }
 
-export const achievementService = new AchievementService() 
+export function checkAchievementProgress(achievement: Achievement, userData: UserData): number {
+  switch (achievement.condition.type) {
+    case 'questionCount':
+      return userData.questionCount / achievement.condition.value
+    case 'streakDays':
+      return userData.streakDays / achievement.condition.value
+    case 'perfectScore':
+      return userData.perfectScores / achievement.condition.value
+    case 'custom':
+      return achievement.condition.customCheck ? achievement.condition.customCheck(userData) : 0
+    default:
+      return 0
+  }
+}
+
+export const achievementService = new AchievementService()

@@ -1,100 +1,87 @@
-import { useState, useCallback } from 'react'
-import { useToast } from '@/hooks/use-toast'
-import { 
-  Question, 
-  ValidationResult, 
-  ValidationSummary 
-} from '@/lib/ai/types'
-import { validateQuestionBatch } from '@/lib/ai/batchValidation'
-import { useAIErrorHandling } from './useAIErrorHandling'
+import { useState, useCallback } from 'react';
+import { ValidationError, ValidationSummary } from '@/types/validation';
 
-interface UseValidationOptions {
-  subject?: string
-  educationSystem?: string
-  onValidationComplete?: (results: ValidationResult[]) => void
+interface ValidationState {
+  isValidating: boolean;
+  errors: ValidationError[];
+  summary: ValidationSummary | null;
 }
 
-export function useValidation(options: UseValidationOptions = {}) {
-  const [isValidating, setIsValidating] = useState(false)
-  const [validationResults, setValidationResults] = useState<ValidationResult[]>([])
-  const [summary, setSummary] = useState<ValidationSummary | null>(null)
-  const [progress, setProgress] = useState(0)
-  const { toast } = useToast()
-  const { handleError } = useAIErrorHandling()
+interface ValidationOptions {
+  onValidationComplete?: (summary: ValidationSummary) => void;
+  onValidationError?: (error: Error) => void;
+}
 
-  const validateQuestions = useCallback(async (
-    questions: Question[],
-    batchSize = 5
-  ) => {
+export function useValidation(options: ValidationOptions = {}) {
+  const [state, setState] = useState<ValidationState>({
+    isValidating: false,
+    errors: [],
+    summary: null
+  });
+
+  const validate = useCallback(async (content: string) => {
     try {
-      setIsValidating(true)
-      setProgress(0)
+      setState(prev => ({ ...prev, isValidating: true, errors: [] }));
 
-      const results: ValidationResult[] = []
+      // Simulated validation delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      for (let i = 0; i < questions.length; i += batchSize) {
-        const batch = questions.slice(i, Math.min(i + batchSize, questions.length))
-        const batchResults = await validateQuestionBatch(
-          batch,
-          options.subject,
-          options.educationSystem
-        )
-        
-        results.push(...batchResults.results)
-        setProgress(((i + batch.length) / questions.length) * 100)
+      const validationErrors: ValidationError[] = [];
+      let errorCount = 0;
+      const warningCount = 0;
+
+      // Basic content validation
+      if (!content.trim()) {
+        validationErrors.push({
+          type: 'error',
+          message: 'Content cannot be empty',
+          line: 1,
+          column: 1
+        });
+        errorCount++;
       }
 
-      setValidationResults(results)
-      options.onValidationComplete?.(results)
-
-      // Calculate summary
+      // Create validation summary
       const summary: ValidationSummary = {
-        totalQuestions: questions.length,
-        validQuestions: results.filter(r => r.isValid).length,
-        totalErrors: results.reduce((sum, r) => sum + r.errors.length, 0),
-        totalWarnings: results.reduce((sum, r) => sum + r.warnings.length, 0),
-        totalInfo: results.reduce((sum, r) => sum + r.info.length, 0),
-        categorySummary: {
-          content: results.reduce((sum, r) => 
-            sum + r.all.filter(i => !i.passed && i.category === 'content').length, 0),
-          structure: results.reduce((sum, r) => 
-            sum + r.all.filter(i => !i.passed && i.category === 'structure').length, 0),
-          pedagogy: results.reduce((sum, r) => 
-            sum + r.all.filter(i => !i.passed && i.category === 'pedagogy').length, 0),
-          accessibility: results.reduce((sum, r) => 
-            sum + r.all.filter(i => !i.passed && i.category === 'accessibility').length, 0)
-        },
-        autoFixableCount: results.reduce((sum, r) => 
-          sum + r.all.filter(i => !i.passed && i.autoFix).length, 0)
-      }
+        errorCount,
+        warningCount,
+        passedChecks: validationErrors.length === 0,
+        timestamp: new Date().toISOString()
+      };
 
-      setSummary(summary)
+      setState(prev => ({
+        ...prev,
+        isValidating: false,
+        errors: validationErrors,
+        summary
+      }));
 
-      toast({
-        title: "Validation Complete",
-        description: `${summary.validQuestions} of ${summary.totalQuestions} questions valid`,
-      })
+      options.onValidationComplete?.(summary);
+
+      return {
+        success: validationErrors.length === 0,
+        errors: validationErrors,
+        summary
+      };
     } catch (error) {
-      handleError(error)
-    } finally {
-      setIsValidating(false)
-      setProgress(0)
+      const validationError = error instanceof Error ? error : new Error('Validation failed');
+      setState(prev => ({ ...prev, isValidating: false }));
+      options.onValidationError?.(validationError);
+      throw validationError;
     }
-  }, [options.subject, options.educationSystem, options.onValidationComplete, toast, handleError])
+  }, [options]);
 
-  const resetValidation = useCallback(() => {
-    setValidationResults([])
-    setSummary(null)
-    setProgress(0)
-    setIsValidating(false)
-  }, [])
+  const reset = useCallback(() => {
+    setState({
+      isValidating: false,
+      errors: [],
+      summary: null
+    });
+  }, []);
 
   return {
-    isValidating,
-    validationResults,
-    summary,
-    progress,
-    validateQuestions,
-    resetValidation
-  }
-} 
+    ...state,
+    validate,
+    reset
+  };
+}

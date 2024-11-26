@@ -9,22 +9,29 @@ import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react'
+import { Question, Answer } from '@/types'
+
+interface QuizData {
+  title: string
+  description: string
+  educationSystem: string
+  category: string
+  questions: Question[]
+}
 
 interface ReviewQuizProps {
-  quizData: any
-  onUpdate: (data: any) => void
+  quizData: QuizData
+  onUpdate: (data: QuizData) => void
 }
 
 export function ReviewQuiz({ quizData, onUpdate }: ReviewQuizProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [currentStep, setCurrentStep] = useState<'review' | 'saving'>('review')
   const { toast } = useToast()
   const supabase = createClientComponentClient()
 
   const handleSaveQuiz = async () => {
     try {
       setIsSubmitting(true)
-      setCurrentStep('saving')
 
       // Get the authenticated user
       const { data: { session }, error: authError } = await supabase.auth.getSession()
@@ -65,7 +72,7 @@ export function ReviewQuiz({ quizData, onUpdate }: ReviewQuizProps) {
         if (questionError) throw questionError
 
         // Create answers for the question
-        const answersToInsert = question.answers.map((answer: any, index: number) => ({
+        const answersToInsert = question.answers.map((answer: Answer, index: number) => ({
           question_id: questionData.id,
           answer_text: answer.text,
           explanation: answer.explanation,
@@ -96,7 +103,6 @@ export function ReviewQuiz({ quizData, onUpdate }: ReviewQuizProps) {
       })
     } finally {
       setIsSubmitting(false)
-      setCurrentStep('review')
     }
   }
 
@@ -145,7 +151,7 @@ export function ReviewQuiz({ quizData, onUpdate }: ReviewQuizProps) {
       {/* Questions Review */}
       <div className="space-y-4">
         <h3 className="font-medium">Questions ({quizData.questions.length})</h3>
-        {quizData.questions.map((question: any, index: number) => (
+        {quizData.questions.map((question: Question, index: number) => (
           <Card key={question.id} className="p-4">
             <div className="space-y-4">
               <div className="flex justify-between items-start">
@@ -169,7 +175,7 @@ export function ReviewQuiz({ quizData, onUpdate }: ReviewQuizProps) {
 
               <div className="space-y-2">
                 <Label>Answers</Label>
-                {question.answers.map((answer: any, answerIndex: number) => (
+                {question.answers.map((answer: Answer, answerIndex: number) => (
                   <div
                     key={answerIndex}
                     className={`p-2 rounded ${

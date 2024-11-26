@@ -1,134 +1,86 @@
-import { useState, useCallback, useEffect } from 'react'
-import { useToast } from '@/hooks/use-toast'
-import { 
-  Question, 
-  ValidationResult, 
-  ValidationError,
-  ValidationCategory,
-  ValidationSeverity 
-} from '@/lib/ai/types'
-import { validateQuestionBatch } from '@/lib/ai/batchValidation'
-import { useAIErrorHandling } from './useAIErrorHandling'
+import { useState, useCallback, useEffect } from 'react';
+import { ValidationError } from '@/types/validation';
 
-interface UseRealTimeValidationOptions {
-  subject?: string
-  educationSystem?: string
-  debounceMs?: number
-  onValidationComplete?: (result: ValidationResult) => void
+interface RealTimeValidationOptions {
+  onValidationComplete?: (errors: ValidationError[]) => void;
+  onValidationError?: (error: Error) => void;
+  debounceMs?: number;
 }
 
-export function useRealTimeValidation(
-  options: UseRealTimeValidationOptions = {}
-) {
-  const [isValidating, setIsValidating] = useState(false)
-  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null)
-  const [validationTimeout, setValidationTimeout] = useState<NodeJS.Timeout | null>(null)
-  const { toast } = useToast()
-  const { handleError } = useAIErrorHandling()
+export function useRealTimeValidation(options: RealTimeValidationOptions = {}) {
+  const [isValidating, setIsValidating] = useState(false);
+  const [errors, setErrors] = useState<ValidationError[]>([]);
+  const [content, setContent] = useState('');
+  const { debounceMs = 500 } = options;
 
-  const validateQuestion = useCallback(async (question: Question) => {
+  const validateContent = useCallback(async (text: string) => {
     try {
-      setIsValidating(true)
-      const result = await validateQuestionBatch(
-        [question],
-        options.subject,
-        options.educationSystem
-      )
+      setIsValidating(true);
+      setErrors([]);
 
-      setValidationResult(result.results[0])
-      options.onValidationComplete?.(result.results[0])
+      // Basic validation rules
+      const validationErrors: ValidationError[] = [];
 
-      // Show toast only for errors
-      if (result.results[0].errors.length > 0) {
-        toast({
-          title: "Validation Issues",
-          description: `Found ${result.results[0].errors.length} validation errors`,
-          variant: "destructive",
-        })
+      // Content validation
+      if (!text.trim()) {
+        validationErrors.push({
+          type: 'error',
+          message: 'Content cannot be empty',
+          field: 'content'
+        });
       }
 
-      return result.results[0]
+      // Length validation
+      if (text.length > 1000) {
+        validationErrors.push({
+          type: 'warning',
+          message: 'Content is too long (max 1000 characters)',
+          field: 'content'
+        });
+      }
+
+      setErrors(validationErrors);
+      options.onValidationComplete?.(validationErrors);
+
+      return {
+        isValid: validationErrors.length === 0,
+        errors: validationErrors
+      };
     } catch (error) {
-      handleError(error)
-      return null
+      const validationError = error instanceof Error ? error : new Error('Validation failed');
+      options.onValidationError?.(validationError);
+      throw validationError;
     } finally {
-      setIsValidating(false)
+      setIsValidating(false);
     }
-  }, [options.subject, options.educationSystem, options.onValidationComplete, toast, handleError])
-
-  const debouncedValidate = useCallback((question: Question) => {
-    if (validationTimeout) {
-      clearTimeout(validationTimeout)
-    }
-
-    const timeout = setTimeout(() => {
-      validateQuestion(question)
-    }, options.debounceMs || 500)
-
-    setValidationTimeout(timeout)
-  }, [validateQuestion, options.debounceMs, validationTimeout])
-
-  const getValidationStatus = useCallback((
-    category?: ValidationCategory,
-    severity?: ValidationSeverity
-  ) => {
-    if (!validationResult) return null
-
-    const filteredErrors = validationResult.all.filter(error => {
-      if (category && error.category !== category) return false
-      if (severity && error.severity !== severity) return false
-      return !error.passed
-    })
-
-    return {
-      hasIssues: filteredErrors.length > 0,
-      issueCount: filteredErrors.length,
-      issues: filteredErrors
-    }
-  }, [validationResult])
-
-  const getCategoryStatus = useCallback((category: ValidationCategory) => {
-    if (!validationResult) return null
-
-    const categoryIssues = validationResult.all.filter(
-      error => !error.passed && error.category === category
-    )
-
-    return {
-      errors: categoryIssues.filter(issue => issue.severity === 'error').length,
-      warnings: categoryIssues.filter(issue => issue.severity === 'warning').length,
-      info: categoryIssues.filter(issue => issue.severity === 'info').length,
-      total: categoryIssues.length,
-      hasIssues: categoryIssues.length > 0
-    }
-  }, [validationResult])
-
-  const resetValidation = useCallback(() => {
-    if (validationTimeout) {
-      clearTimeout(validationTimeout)
-    }
-    setValidationResult(null)
-    setIsValidating(false)
-  }, [validationTimeout])
+  }, [options]);
 
   useEffect(() => {
-    return () => {
-      if (validationTimeout) {
-        clearTimeout(validationTimeout)
+    const timer = setTimeout(() => {
+      if (content) {
+        validateContent(content);
       }
-    }
-  }, [validationTimeout])
+    }, debounceMs);
+
+    return () => clearTimeout(timer);
+  }, [content, debounceMs, validateContent]);
+
+  const updateContent = useCallback((newContent: string) => {
+    setContent(newContent);
+  }, []);
+
+  const resetValidation = useCallback(() => {
+    setIsValidating(false);
+    setErrors([]);
+    setContent('');
+  }, []);
 
   return {
     isValidating,
-    validationResult,
-    validateQuestion,
-    debouncedValidate,
-    getValidationStatus,
-    getCategoryStatus,
-    resetValidation,
-    hasErrors: validationResult?.errors.length ?? 0 > 0,
-    hasWarnings: validationResult?.warnings.length ?? 0 > 0,
-    isValid: validationResult?.isValid ?? false
-  }
-} 
+    errors,
+    content,
+    updateContent,
+    validateContent,
+    resetValidation
+  };
+}

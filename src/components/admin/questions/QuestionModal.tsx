@@ -42,6 +42,13 @@ interface Question {
   answers?: Answer[]
 }
 
+interface SupabaseError {
+  message: string
+  code?: string
+  details?: string
+  hint?: string
+}
+
 interface QuestionModalProps {
   onQuestionSaved?: (question: Question) => void | Promise<void>
   initialQuestion?: Question
@@ -264,17 +271,24 @@ export function QuestionModal({
         title: "Success",
         description: `Question ${mode === 'edit' ? 'updated' : 'created'} successfully`,
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error in handleSubmit:', error)
+      
+      // Type guard to handle potential Supabase errors
+      const errorMessage = error instanceof Error 
+        ? error.message
+        : (error as SupabaseError)?.message || "Failed to save question"
+      
       console.error('Error details:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint
+        message: (error as SupabaseError)?.message,
+        code: (error as SupabaseError)?.code,
+        details: (error as SupabaseError)?.details,
+        hint: (error as SupabaseError)?.hint
       })
+      
       toast({
         title: "Error",
-        description: error.message || "Failed to save question",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {

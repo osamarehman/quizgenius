@@ -1,136 +1,85 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { learningPathService } from './learningPathService'
+import { Database } from '@/types/supabase'
+import { LearningPath } from '@/types/learning-path'
 
-interface RecommendationCriteria {
+export interface RecommendationCriteria {
+  userId: string
+  currentPathId?: string
   difficulty?: string
-  preferredTopics?: string[]
-  studyTime?: number // minutes per day
-  learningStyle?: 'visual' | 'practical' | 'theoretical'
+  category?: string
+  limit?: number
 }
 
-class RecommendationService {
-  private supabase = createClientComponentClient()
+export interface RecommendedPath extends LearningPath {
+  matchScore: number
+  reason: string
+}
 
-  async getPersonalizedRecommendations(userId: string, criteria?: RecommendationCriteria) {
+export const recommendationService = {
+  async getRecommendations(criteria: RecommendationCriteria): Promise<RecommendedPath[]> {
+    const supabase = createClientComponentClient<Database>()
+    const limit = criteria.limit || 5
+
     try {
-      // Get user's study history and preferences
-      const { data: userHistory } = await this.supabase
-        .from('user_path_progress')
-        .select(`
-          path_id,
-          status,
-          completed_at,
-          learning_path:learning_paths(
-            category_id,
-            difficulty
-          )
-        `)
-        .eq('user_id', userId)
+      // Get user's completed paths and preferences
+      const { data: userProgress } = await supabase
+        .from('learning_path_progress')
+        .select('path_id, progress')
+        .eq('user_id', criteria.userId)
+        .gte('progress', 80) // Consider paths with >80% progress as completed
 
-      // Get user's strengths and preferences
-      const completedPaths = userHistory?.filter(h => h.status === 'completed') || []
-      const preferredCategories = completedPaths
-        .map(p => p.learning_path.category_id)
-        .filter((v, i, a) => a.indexOf(v) === i)
+      const completedPathIds = userProgress?.map(p => p.path_id) || []
 
-      // Build recommendation query
-      let query = this.supabase
+      // Get available paths excluding completed ones
+      let query = supabase
         .from('learning_paths')
         .select(`
           *,
-          category:categories(name),
-          stages:path_stages(count),
-          rating,
-          user_progress:user_path_progress(
-            completed_stages,
-            last_accessed
-          )
+          category:categories(name)
         `)
-        .eq('is_published', true)
-        .not('id', 'in', `(${completedPaths.map(p => p.path_id).join(',')})`)
+        .not('id', 'in', completedPathIds)
 
-      if (criteria?.difficulty) {
+      if (criteria.currentPathId) {
+        query = query.neq('id', criteria.currentPathId)
+      }
+
+      if (criteria.difficulty) {
         query = query.eq('difficulty', criteria.difficulty)
       }
 
-      if (preferredCategories.length > 0) {
-        query = query.in('category_id', preferredCategories)
+      if (criteria.category) {
+        query = query.eq('category', criteria.category)
       }
 
-      const { data: recommendations } = await query
-        .order('rating', { ascending: false })
-        .limit(5)
+      const { data: paths, error } = await query.limit(limit)
 
-      return recommendations || []
+      if (error) throw error
+
+      // Transform and add recommendation context
+      return (paths || []).map(path => ({
+        ...path,
+        matchScore: calculateMatchScore(path),
+        reason: generateRecommendationReason(path)
+      }))
     } catch (error) {
-      console.error('Error getting personalized recommendations:', error)
-      return []
+      console.error('Error getting recommendations:', error)
+      throw error
     }
-  }
-
-  async getNextBestPath(userId: string) {
-    try {
-      // Get user's current skill level and progress
-      const { data: userStats } = await this.supabase
-        .from('user_stats')
-        .select('*')
-        .eq('user_id', userId)
-        .single()
-
-      // Get appropriate difficulty level
-      const recommendedDifficulty = this.calculateRecommendedDifficulty(userStats)
-
-      // Get paths matching the recommended difficulty
-      const { data: paths } = await this.supabase
-        .from('learning_paths')
-        .select(`
-          *,
-          category:categories(name),
-          prerequisites:path_prerequisites(
-            required_path_id
-          )
-        `)
-        .eq('difficulty', recommendedDifficulty)
-        .eq('is_published', true)
-
-      // Filter paths based on completed prerequisites
-      const eligiblePaths = await this.filterEligiblePaths(paths || [], userId)
-
-      return eligiblePaths[0] || null
-    } catch (error) {
-      console.error('Error getting next best path:', error)
-      return null
-    }
-  }
-
-  private calculateRecommendedDifficulty(userStats: any) {
-    const averageScore = userStats?.average_score || 0
-    const completedPaths = userStats?.completed_paths || 0
-
-    if (averageScore > 85 && completedPaths > 5) {
-      return 'advanced'
-    } else if (averageScore > 70 && completedPaths > 2) {
-      return 'intermediate'
-    }
-    return 'beginner'
-  }
-
-  private async filterEligiblePaths(paths: any[], userId: string) {
-    // Get user's completed paths
-    const { data: completedPaths } = await this.supabase
-      .from('user_path_progress')
-      .select('path_id')
-      .eq('user_id', userId)
-      .eq('status', 'completed')
-
-    const completedPathIds = new Set(completedPaths?.map(p => p.path_id) || [])
-
-    // Filter paths where all prerequisites are completed
-    return paths.filter(path => {
-      const prerequisites = path.prerequisites.map((p: any) => p.required_path_id)
-      return prerequisites.every(preReqId => completedPathIds.has(preReqId))
-    })
   }
 }
 
-export const recommendationService = new RecommendationService() 
+function calculateMatchScore(path: LearningPath): number {
+  // Implement scoring logic based on user preferences and path attributes
+  let score = 50 // Start with a base score
+  
+  if (path.category?.name) {
+    score += 20 // Add points for having a category
+  }
+  
+  return Math.min(100, score)
+}
+
+function generateRecommendationReason(path: LearningPath): string {
+  // Generate a human-readable reason for the recommendation
+  return `Based on your interest in ${path.category?.name || 'this subject'}`
+}

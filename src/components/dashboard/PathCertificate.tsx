@@ -19,8 +19,8 @@ interface PathCertificateProps {
     score: number
     level: number
   }
-  onDownload: () => void
-  onShare: () => void
+  onDownload: (pathId: string) => void
+  onShare: (pathId: string) => void
 }
 
 export function PathCertificate({
@@ -33,6 +33,16 @@ export function PathCertificate({
     const hours = Math.floor(minutes / 60)
     const mins = minutes % 60
     return `${hours}h ${mins}m`
+  }
+
+  const handleDownload = () => {
+    // Pass pathId to the download handler for certificate identification
+    onDownload(pathId)
+  }
+
+  const handleShare = () => {
+    // Pass pathId to the share handler for certificate identification
+    onShare(pathId)
   }
 
   return (
@@ -83,7 +93,7 @@ export function PathCertificate({
           <Button
             variant="outline"
             className="flex-1"
-            onClick={onDownload}
+            onClick={handleDownload}
           >
             <Download className="h-4 w-4 mr-2" />
             Download
@@ -91,7 +101,7 @@ export function PathCertificate({
           <Button
             variant="outline"
             className="flex-1"
-            onClick={onShare}
+            onClick={handleShare}
           >
             <Share2 className="h-4 w-4 mr-2" />
             Share

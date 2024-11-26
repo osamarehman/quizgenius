@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import {
   Select,
   SelectContent,
@@ -31,11 +30,7 @@ export function TemplateAnalytics() {
   const supabase = createClientComponentClient()
   const { toast } = useToast()
 
-  useEffect(() => {
-    fetchAnalytics()
-  }, [timeRange])
-
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     try {
       setIsLoading(true)
       const { data, error } = await supabase
@@ -47,16 +42,21 @@ export function TemplateAnalytics() {
       if (error) throw error
 
       setAnalytics(data || [])
-    } catch (error) {
+    } catch (fetchError) {
+      console.error('Failed to fetch analytics:', fetchError)
       toast({
         title: "Error",
-        description: "Failed to fetch analytics data",
+        description: "Failed to load analytics data",
         variant: "destructive",
       })
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [supabase, timeRange, toast])
+
+  useEffect(() => {
+    fetchAnalytics()
+  }, [fetchAnalytics])
 
   const getDateRange = (range: 'week' | 'month' | 'year') => {
     const date = new Date()
@@ -72,6 +72,14 @@ export function TemplateAnalytics() {
         break
     }
     return date.toISOString()
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    )
   }
 
   return (

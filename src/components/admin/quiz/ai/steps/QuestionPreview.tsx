@@ -4,9 +4,10 @@ import { useState } from 'react'
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Layout, List, Grid } from 'lucide-react'
+import { Question, Answer } from '@/types'
 
 interface PreviewProps {
-  question: any
+  question: Question
   layout?: 'card' | 'list' | 'grid'
 }
 
@@ -18,7 +19,7 @@ export function QuestionPreview({ question, layout = 'card' }: PreviewProps) {
       <Card className="p-6 space-y-4">
         <h3 className="font-medium">{question.text}</h3>
         <div className="space-y-2">
-          {question.answers.map((answer: any, i: number) => (
+          {question.answers.map((answer: Answer, i: number) => (
             <div
               key={i}
               className={`p-4 rounded-lg ${
@@ -47,7 +48,7 @@ export function QuestionPreview({ question, layout = 'card' }: PreviewProps) {
       <div className="space-y-2">
         <p className="font-medium">{question.text}</p>
         <ol className="list-decimal list-inside space-y-2">
-          {question.answers.map((answer: any, i: number) => (
+          {question.answers.map((answer: Answer, i: number) => (
             <li
               key={i}
               className={`pl-2 ${answer.isCorrect ? 'text-green-600' : ''}`}
@@ -68,7 +69,7 @@ export function QuestionPreview({ question, layout = 'card' }: PreviewProps) {
       <div className="space-y-4">
         <p className="font-medium">{question.text}</p>
         <div className="grid grid-cols-2 gap-4">
-          {question.answers.map((answer: any, i: number) => (
+          {question.answers.map((answer: Answer, i: number) => (
             <div
               key={i}
               className={`p-4 rounded-lg ${

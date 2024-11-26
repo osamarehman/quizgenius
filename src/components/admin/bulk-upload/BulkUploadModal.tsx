@@ -1,54 +1,53 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Upload, Download, FileSpreadsheet } from 'lucide-react'
-import { toast } from '@/hooks/use-toast'
-import { supabase } from '@/lib/supabase'
-import Papa from 'papaparse'
-import { generateTemplates } from '@/lib/csv-templates/quiz-template'
+import { useState, useEffect, useCallback } from 'react'
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { useToast } from "@/hooks/use-toast"
+import { Loader2, X } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import * as XLSX from 'xlsx'
+import { supabase } from '@/lib/supabase'
 
+// Types
 interface BulkUploadModalProps {
   type: 'quizzes' | 'questions'
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-interface DatabaseFields {
-  quizzes: {
-    title: string
-    description: string
-    time_limit: number
-    category_id: string
-    sub_category_id: string
-    education_system_id: string
-    is_published: boolean
-    created_by: string
-    created_at: string
-    updated_at: string
-    image_url?: string
-  }
-  questions: {
-    question_text: string
-    question_type: 'mcq' | 'true-false' | 'blanks'
-    question_explanation: string
-    quiz_id: string
-    order_number: number
-    answers: Array<{
-      text: string
-      explanation: string
-      is_correct: boolean
-    }>
-    created_at: string
-    updated_at: string
-  }
+interface FileValidationResult {
+  file: File
+  isValid: boolean
+  errors: string[]
 }
 
 interface Quiz {
   id: string
   title: string
+}
+
+interface Question {
+  question_text: string
+  answer_1: string
+  answer_2: string
+  answer_3: string
+  answer_4: string
+  correct_answer: string
+  explanation?: string
+  category?: string
+  difficulty?: string
+  answer_1_explanation?: string
+  answer_2_explanation?: string
+  answer_3_explanation?: string
+  answer_4_explanation?: string
+  answer_5?: string
+  answer_5_explanation?: string
+  answer_6?: string
+  answer_6_explanation?: string
+  question_type?: string
+  order_number?: number
 }
 
 interface UploadData {
@@ -60,30 +59,288 @@ interface UploadData {
   }
 }
 
-interface Question {
-  question: string
-  correct_answer: string
-  incorrect_answers: string[]
-  explanation?: string
-  category?: string
-  difficulty?: string
-}
-
 export function BulkUploadModal({ type, open, onOpenChange }: BulkUploadModalProps) {
-  const [file, setFile] = useState<File | null>(null)
-  const [mappings, setMappings] = useState<Record<string, string>>({})
-  const [headers, setHeaders] = useState<string[]>([])
+  const [files, setFiles] = useState<File[]>([])
   const [isUploading, setIsUploading] = useState(false)
+  const [validationResults, setValidationResults] = useState<FileValidationResult[]>([])
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null)
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
+  const { toast } = useToast()
+
+  const validateFiles = (files: File[]): FileValidationResult[] => {
+    return files.map(file => {
+      const errors: string[] = []
+      
+      // Check file type
+      if (!file.type.includes('csv') && !file.type.includes('excel')) {
+        errors.push('Invalid file type. Only CSV and Excel files are allowed.')
+      }
+
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        errors.push('File size exceeds 5MB limit.')
+      }
+
+      return {
+        file,
+        isValid: errors.length === 0,
+        errors
+      }
+    })
+  }
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      const newFiles = Array.from(event.target.files)
+      const results = validateFiles(newFiles)
+      setValidationResults(results)
+      
+      const validFiles = newFiles.filter((_, index) => results[index].isValid)
+      setFiles(validFiles)
+
+      // Show errors for invalid files
+      results.forEach(result => {
+        if (!result.isValid) {
+          toast({
+            title: `Invalid file: ${result.file.name}`,
+            description: result.errors.join(' '),
+            variant: "destructive"
+          })
+        }
+      })
+    }
+  }
+
+  const processQuestions = async (questions: Question[], quizId: string) => {
+    try {
+      const { data: existingQuestions, error: fetchError } = await supabase
+        .from('questions')
+        .select('order_number')
+        .eq('quiz_id', quizId)
+        .order('order_number', { ascending: false })
+        .limit(1)
+
+      if (fetchError) throw fetchError
+
+      let startOrderNumber = existingQuestions && existingQuestions.length > 0
+        ? existingQuestions[0].order_number + 1
+        : 1
+
+      for (const question of questions) {
+        // Only validate question text as required
+        if (!question.question_text) {
+          throw new Error('Question text is required')
+        }
+
+        // Create question object with only provided fields
+        const questionData: {
+          quiz_id: string
+          question_text: string
+          question_type: string
+          order_number: number
+          question_explanation?: string
+        } = {
+          quiz_id: quizId,
+          question_text: question.question_text,
+          question_type: 'mcq',
+          order_number: startOrderNumber++
+        }
+
+        // Add optional fields only if they exist
+        if (question.question_explanation) {
+          questionData.question_explanation = question.question_explanation
+        }
+        if (question.question_type) {
+          questionData.question_type = question.question_type
+        }
+        if (question.order_number) {
+          questionData.order_number = question.order_number
+        }
+
+        const { data: insertedQuestion, error: questionError } = await supabase
+          .from('questions')
+          .insert(questionData)
+          .select()
+          .single()
+
+        if (questionError || !insertedQuestion) {
+          throw questionError || new Error('Failed to insert question')
+        }
+
+        // Process answers - collect only provided answers
+        const answers = []
+        const answerFields = [
+          { text: question.answer_1, explanation: question.answer_1_explanation },
+          { text: question.answer_2, explanation: question.answer_2_explanation },
+          { text: question.answer_3, explanation: question.answer_3_explanation },
+          { text: question.answer_4, explanation: question.answer_4_explanation },
+          { text: question.answer_5, explanation: question.answer_5_explanation },
+          { text: question.answer_6, explanation: question.answer_6_explanation }
+        ]
+
+        answerFields.forEach((answer, index) => {
+          if (answer.text) {
+            const answerData: {
+              answer_text: string
+              is_correct: boolean
+              order_number: number
+              question_id: string
+              explanation?: string
+            } = {
+              answer_text: answer.text,
+              is_correct: answer.text === question.correct_answer,
+              order_number: index + 1,
+              question_id: insertedQuestion.id
+            }
+            
+            if (answer.explanation) {
+              answerData.explanation = answer.explanation
+            }
+            
+            answers.push(answerData)
+          }
+        })
+
+        // Ensure at least one answer exists
+        if (answers.length === 0) {
+          throw new Error('At least one answer is required')
+        }
+
+        // Insert only the provided answers
+        const { error: answersError } = await supabase
+          .from('answers')
+          .insert(answers)
+
+        if (answersError) {
+          throw answersError
+        }
+      }
+
+      return { success: true }
+    } catch (error) {
+      console.error('Error processing questions:', error)
+      return { success: false, error }
+    }
+  }
+
+  const handleUpload = async () => {
+    if (files.length === 0) {
+      toast({
+        title: "No files selected",
+        description: "Please select at least one file to upload.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      setIsUploading(true)
+
+      for (const file of files) {
+        const reader = new FileReader()
+        const data = await new Promise<UploadData>((resolve, reject) => {
+          reader.onload = (e) => {
+            try {
+              const data = new Uint8Array(e.target?.result as ArrayBuffer)
+              const workbook = XLSX.read(data, { type: 'array' })
+              const firstSheetName = workbook.SheetNames[0]
+              const sheet = workbook.Sheets[firstSheetName]
+              if (!sheet) {
+                throw new Error('No data found in the file')
+              }
+              const jsonData = XLSX.utils.sheet_to_json(sheet)
+              const uploadData: UploadData = {
+                questions: jsonData,
+                metadata: {
+                  totalRows: jsonData.length,
+                  validRows: jsonData.length,
+                  errors: []
+                }
+              }
+              resolve(uploadData)
+            } catch (error) {
+              reject(error)
+            }
+          }
+          reader.onerror = reject
+          reader.readAsArrayBuffer(file)
+        })
+
+        if (type === 'questions' && selectedQuiz) {
+          const result = await processQuestions(data.questions, selectedQuiz.id)
+          if (!result.success) {
+            throw result.error
+          }
+
+          // Record upload history
+          const { error: historyError } = await supabase
+            .from('bulk_upload_history')
+            .insert({
+              file_name: file.name,
+              type: type,
+              status: 'completed',
+              questions_count: data.questions.length,
+              quiz_id: selectedQuiz.id,
+              quiz_name: selectedQuiz.title,
+              created_by: supabase.auth.user()?.id,
+              created_at: new Date().toISOString()
+            })
+
+          if (historyError) {
+            console.error('Error recording history:', historyError)
+            throw historyError
+          }
+        } else {
+          // Handle quiz data
+          const mappedData = data.questions.map(row => ({
+            title: row.question_text,
+            description: '',
+            time_limit: 30,
+            category_id: '',
+            sub_category_id: '',
+            education_system_id: '',
+            is_published: false,
+            created_by: supabase.auth.user()?.id,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }))
+
+          const { error } = await supabase
+            .from('quizzes')
+            .insert(mappedData)
+
+          if (error) throw error
+        }
+      }
+
+      toast({
+        title: "Upload successful",
+        description: `Successfully uploaded ${files.length} file(s).`
+      })
+      onOpenChange(false)
+    } catch (error) {
+      if (error instanceof Error) {
+        toast({
+          title: "Upload failed",
+          description: error.message,
+          variant: "destructive"
+        })
+      }
+    } finally {
+      setIsUploading(false)
+    }
+  }
 
   useEffect(() => {
-    if (type === 'questions' && open) {
-      void fetchQuizzes()
-    }
-  }, [type, open])
+    const loadQuizzes = async () => {
+      if (type === 'questions' && open) {
+        await fetchQuizzes();
+      }
+    };
+    void loadQuizzes();
+  }, [type, open, fetchQuizzes]);
 
-  const fetchQuizzes = async () => {
+  const fetchQuizzes = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('quizzes')
@@ -100,307 +357,16 @@ export function BulkUploadModal({ type, open, onOpenChange }: BulkUploadModalPro
         variant: "destructive"
       })
     }
-  }
-
-  const processQuestions = async (questions: Question[], quizId: string) => {
-    try {
-      // Get the current highest order number for this quiz
-      const { data: existingQuestions, error: fetchError } = await supabase
-        .from('questions')
-        .select('order_number')
-        .eq('quiz_id', quizId)
-        .order('order_number', { ascending: false })
-        .limit(1)
-
-      if (fetchError) throw fetchError
-
-      let startOrderNumber = existingQuestions && existingQuestions.length > 0
-        ? existingQuestions[0].order_number + 1
-        : 1
-
-      for (const question of questions) {
-        // Validate required fields
-        if (!question.question) {
-          throw new Error('Question text is required')
-        }
-
-        // Insert question with auto-incremented order number
-        const { data: questionData, error: questionError } = await supabase
-          .from('questions')
-          .insert({
-            quiz_id: quizId,
-            question_text: question.question,
-            question_explanation: question.explanation || '',
-            question_type: 'mcq',
-            image_url: null,
-            order_number: startOrderNumber++
-          })
-          .select()
-          .single()
-
-        if (questionError || !questionData) throw questionError || new Error('Failed to insert question')
-
-        // Process answers
-        const answers = []
-        const correctAnswer = question.correct_answer
-
-        // Process each answer
-        for (let i = 0; i < question.incorrect_answers.length; i++) {
-          const answer = {
-            answer_text: question.incorrect_answers[i],
-            explanation: '',
-            is_correct: false,
-            order_number: i + 1,
-            question_id: questionData.id
-          }
-          answers.push(answer)
-        }
-
-        const correctAnswerData = {
-          answer_text: correctAnswer,
-          explanation: '',
-          is_correct: true,
-          order_number: answers.length + 1,
-          question_id: questionData.id
-        }
-        answers.push(correctAnswerData)
-
-        // Insert answers
-        const { error: answersError } = await supabase
-          .from('answers')
-          .insert(answers)
-
-        if (answersError) {
-          console.error('Error inserting answers:', answersError)
-          throw answersError
-        }
-      }
-
-      return { success: true }
-    } catch (error) {
-      console.error('Error processing questions:', error)
-      return { success: false, error }
-    }
-  }
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0]
-    if (selectedFile) {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        try {
-          const data = new Uint8Array(e.target?.result as ArrayBuffer)
-          const workbook = XLSX.read(data, { type: 'array' })
-          
-          // Get the first sheet
-          const firstSheetName = workbook.SheetNames[0]
-          const sheet = workbook.Sheets[firstSheetName]
-          if (!sheet) {
-            throw new Error('No data found in the file')
-          }
-
-          // Convert to JSON
-          const jsonData = XLSX.utils.sheet_to_json(sheet)
-          if (!jsonData || jsonData.length === 0) {
-            throw new Error('No data found in the file')
-          }
-          
-          // Get headers
-          const headers = Object.keys(jsonData[0] || {})
-          setHeaders(headers)
-          
-          // Create initial mappings
-          const initialMappings: Record<string, string> = {}
-          headers.forEach(header => {
-            initialMappings[header] = header
-          })
-          setMappings(initialMappings)
-          
-          // Store the parsed data
-          setFile(selectedFile)
-        } catch (error) {
-          console.error('Error parsing file:', error)
-          toast({
-            title: "Error",
-            description: "Failed to parse file. Make sure it's a valid CSV or Excel file.",
-            variant: "destructive"
-          })
-        }
-      }
-      reader.readAsArrayBuffer(selectedFile)
-    }
-  }
-
-  const handleUpload = async () => {
-    if (!file) return
-    if (!selectedQuiz && type === 'questions') {
-      toast({
-        title: "Error",
-        description: "Please select a quiz",
-        variant: "destructive"
-      })
-      return
-    }
-
-    setIsUploading(true)
-    try {
-      const reader = new FileReader()
-      const data = await new Promise<UploadData>((resolve, reject) => {
-        reader.onload = (e) => {
-          try {
-            const data = new Uint8Array(e.target?.result as ArrayBuffer)
-            const workbook = XLSX.read(data, { type: 'array' })
-            const firstSheetName = workbook.SheetNames[0]
-            const sheet = workbook.Sheets[firstSheetName]
-            if (!sheet) {
-              throw new Error('No data found in the file')
-            }
-            const jsonData = XLSX.utils.sheet_to_json(sheet)
-            const uploadData: UploadData = {
-              questions: jsonData,
-              metadata: {
-                totalRows: jsonData.length,
-                validRows: jsonData.length,
-                errors: []
-              }
-            }
-            resolve(uploadData)
-          } catch (error) {
-            reject(error)
-          }
-        }
-        reader.onerror = reject
-        reader.readAsArrayBuffer(file)
-      })
-
-      // Get current user
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) throw new Error('Not authenticated')
-
-      if (type === 'questions' && selectedQuiz) {
-        const result = await processQuestions(data.questions, selectedQuiz.id)
-        if (!result.success) {
-          throw result.error
-        }
-
-        // Record upload history
-        const { error: historyError } = await supabase
-          .from('bulk_upload_history')
-          .insert({
-            file_name: file.name,
-            type: type,
-            status: 'completed',
-            questions_count: data.questions.length,
-            quiz_id: selectedQuiz.id,
-            quiz_name: selectedQuiz.title,
-            created_by: session.user.id,
-            created_at: new Date().toISOString()
-          })
-
-        if (historyError) {
-          console.error('Error recording history:', historyError)
-          throw historyError
-        }
-      } else {
-        // Handle quiz data
-        const mappedData = data.questions.map(row => ({
-          title: row.question,
-          description: '',
-          time_limit: 30,
-          category_id: '',
-          sub_category_id: '',
-          education_system_id: '',
-          is_published: false,
-          created_by: session.user.id,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }))
-
-        const { error } = await supabase
-          .from('quizzes')
-          .insert(mappedData)
-
-        if (error) throw error
-      }
-
-      toast({
-        title: "Success",
-        description: `Successfully uploaded ${data.questions.length} ${type}`,
-      })
-
-      onOpenChange(false)
-      setFile(null)
-      setMappings({})
-      setHeaders([])
-      setSelectedQuiz(null)
-    } catch (error) {
-      console.error('Upload error:', error)
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : `Failed to upload ${type}`,
-        variant: "destructive",
-      })
-    } finally {
-      setIsUploading(false)
-    }
-  }
-
-  const getAvailableFields = () => {
-    if (type === 'quizzes') {
-      return [
-        { value: 'title', label: 'Title' },
-        { value: 'description', label: 'Description' },
-        { value: 'time_limit', label: 'Time Limit' },
-        { value: 'category_id', label: 'Category ID' },
-        { value: 'sub_category_id', label: 'Sub Category ID' },
-        { value: 'education_system_id', label: 'Education System ID' },
-        { value: 'is_published', label: 'Is Published' }
-      ]
-    }
-    return [
-      { value: 'question', label: 'Question Text' },
-      { value: 'correct_answer', label: 'Correct Answer' },
-      { value: 'incorrect_answers', label: 'Incorrect Answers' },
-      { value: 'explanation', label: 'Explanation' },
-      { value: 'category', label: 'Category' },
-      { value: 'difficulty', label: 'Difficulty' }
-    ]
-  }
-
-  const downloadTemplate = async () => {
-    try {
-      const workbook = await generateTemplates(type)
-      XLSX.writeFile(workbook, `${type}-template.xlsx`)
-
-      toast({
-        title: "Success",
-        description: "Template downloaded with reference data",
-      })
-    } catch (error) {
-      console.error('Error downloading template:', error)
-      toast({
-        title: "Error",
-        description: "Failed to download template",
-        variant: "destructive"
-      })
-    }
-  }
+  }, [toast])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Bulk Upload {type}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <Button onClick={downloadTemplate}>
-              <Download className="h-4 w-4 mr-2" />
-              Download Template
-            </Button>
-          </div>
-
+        <div className="space-y-4">
           {type === 'questions' && (
             <div className="space-y-4 mb-4">
               <h3 className="font-medium">Select Quiz</h3>
@@ -422,58 +388,60 @@ export function BulkUploadModal({ type, open, onOpenChange }: BulkUploadModalPro
             </div>
           )}
 
-          <div className="border-2 border-dashed rounded-lg p-6">
-            <input
+          <div>
+            <Label htmlFor="file-upload">Select Files</Label>
+            <Input
+              id="file-upload"
               type="file"
-              accept=".csv, .xlsx, .xls"
-              onChange={handleFileSelect}
-              className="hidden"
-              id="csv-upload"
+              accept=".csv,.xlsx,.xls"
+              multiple
+              onChange={handleFileChange}
+              disabled={isUploading}
             />
-            <label
-              htmlFor="csv-upload"
-              className="flex flex-col items-center justify-center cursor-pointer"
-            >
-              <FileSpreadsheet className="h-12 w-12 text-gray-400" />
-              <span className="mt-2 text-sm text-gray-500">
-                Click to select CSV or Excel file
-              </span>
-            </label>
+            <p className="text-sm text-muted-foreground mt-1">
+              Supported formats: CSV, Excel (.xlsx, .xls)
+            </p>
           </div>
 
-          {headers.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="font-medium">Map CSV Fields</h3>
-              {headers.map((header) => (
-                <div key={header} className="flex items-center gap-4">
-                  <span className="text-sm">{header}</span>
-                  <select
-                    value={mappings[header]}
-                    onChange={(e) => setMappings({
-                      ...mappings,
-                      [header]: e.target.value
-                    })}
-                    className="flex-1 p-2 border rounded"
-                  >
-                    <option value="">Skip this field</option>
-                    {getAvailableFields().map(field => (
-                      <option key={field.value} value={field.value}>
-                        {field.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ))}
+          {files.length > 0 && (
+            <div className="space-y-2">
+              <Label>Selected Files</Label>
+              <ul className="space-y-2">
+                {files.map((file, index) => (
+                  <li key={index} className="flex items-center justify-between">
+                    <span className="text-sm">{file.name}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setFiles(files.filter((_, i) => i !== index))
+                        setValidationResults(validationResults.filter((_, i) => i !== index))
+                      }}
+                      disabled={isUploading}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
-          <Button
-            onClick={handleUpload}
-            disabled={!file || isUploading}
-            className="w-full"
-          >
-            {isUploading ? 'Uploading...' : 'Upload'}
-          </Button>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onOpenChange} disabled={isUploading}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpload} disabled={files.length === 0 || isUploading}>
+              {isUploading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                'Upload'
+              )}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

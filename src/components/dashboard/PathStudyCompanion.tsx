@@ -10,7 +10,6 @@ import { useAchievements } from "@/contexts/AchievementContext"
 import {
   MessageSquare,
   Lightbulb,
-  Search,
   BookOpen,
   Brain,
   Send,
@@ -28,7 +27,6 @@ interface StudyCompanionProps {
 
 export function PathStudyCompanion({
   pathId,
-  currentStageId,
   onAskQuestion,
   onGenerateSummary,
   onGenerateQuiz
@@ -63,7 +61,7 @@ export function PathStudyCompanion({
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to get an answer",
+        description: error instanceof Error ? error.message : "Failed to get an answer",
         variant: "destructive",
       })
     } finally {
@@ -93,7 +91,7 @@ export function PathStudyCompanion({
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to generate summary",
+        description: error instanceof Error ? error.message : "Failed to generate summary",
         variant: "destructive",
       })
     } finally {

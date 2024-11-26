@@ -134,9 +134,7 @@ function generateValidationSummary(results: ValidationResult[]): ValidationSumma
 }
 
 function generateAutoFixSuggestions(
-  question: Question,
-  validationResult: ValidationResult,
-  subject?: string
+  validationResult: ValidationResult
 ): AutoFixSuggestion[] {
   const suggestions: AutoFixSuggestion[] = []
 

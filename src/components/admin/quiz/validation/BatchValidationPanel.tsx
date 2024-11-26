@@ -17,7 +17,7 @@ import {
   ValidationCategory,
   ValidationSeverity 
 } from '@/lib/ai/types'
-import { validateQuestionBatch } from '@/lib/ai/batchValidation'
+import { validateQuestion } from '@/lib/ai/validation'
 
 interface BatchValidationPanelProps {
   questions: Question[]
@@ -43,43 +43,27 @@ export function BatchValidationPanel({
     try {
       setIsValidating(true)
       setProgress(0)
-
-      const batchSize = 5
       const results: ValidationResult[] = []
 
-      for (let i = 0; i < questions.length; i += batchSize) {
-        const batch = questions.slice(i, Math.min(i + batchSize, questions.length))
-        const batchResults = await validateQuestionBatch(batch, subject, educationSystem)
-        
-        results.push(...batchResults.results)
-        setProgress(((i + batch.length) / questions.length) * 100)
+      // Process questions in batches
+      for (let i = 0; i < questions.length; i++) {
+        const result = await validateQuestion(questions[i], {
+          subject,
+          educationSystem
+        })
+        results.push(result)
+        setValidationResults(prev => [...prev, result])
+        setProgress(((i + 1) / questions.length) * 100)
       }
-
-      setValidationResults(results)
-      onValidationComplete?.(results)
 
       // Calculate summary
-      const summary: ValidationSummary = {
-        totalQuestions: questions.length,
-        validQuestions: results.filter(r => r.isValid).length,
-        totalErrors: results.reduce((sum, r) => sum + r.errors.length, 0),
-        totalWarnings: results.reduce((sum, r) => sum + r.warnings.length, 0),
-        totalInfo: results.reduce((sum, r) => sum + r.info.length, 0),
-        categorySummary: {
-          content: results.reduce((sum, r) => 
-            sum + r.all.filter(i => !i.passed && i.category === 'content').length, 0),
-          structure: results.reduce((sum, r) => 
-            sum + r.all.filter(i => !i.passed && i.category === 'structure').length, 0),
-          pedagogy: results.reduce((sum, r) => 
-            sum + r.all.filter(i => !i.passed && i.category === 'pedagogy').length, 0),
-          accessibility: results.reduce((sum, r) => 
-            sum + r.all.filter(i => !i.passed && i.category === 'accessibility').length, 0)
-        },
-        autoFixableCount: results.reduce((sum, r) => 
-          sum + r.all.filter(i => !i.passed && i.autoFix).length, 0)
-      }
-
+      const summary = calculateValidationSummary(results)
       setSummary(summary)
+
+      // Notify parent component
+      if (onValidationComplete) {
+        onValidationComplete(results)
+      }
     } catch (error) {
       console.error('Batch validation error:', error)
     } finally {
@@ -100,15 +84,41 @@ export function BatchValidationPanel({
     }
   }
 
+  const calculateValidationSummary = (results: ValidationResult[]) => {
+    const summary: ValidationSummary = {
+      totalQuestions: results.length,
+      validQuestions: results.filter(r => r.isValid).length,
+      totalErrors: results.reduce((sum, r) => sum + r.errors.length, 0),
+      totalWarnings: results.reduce((sum, r) => sum + r.warnings.length, 0),
+      totalInfo: results.reduce((sum, r) => sum + r.info.length, 0),
+      categorySummary: {
+        content: results.reduce((sum, r) => 
+          sum + r.all.filter(i => !i.passed && i.category === 'content').length, 0),
+        structure: results.reduce((sum, r) => 
+          sum + r.all.filter(i => !i.passed && i.category === 'structure').length, 0),
+        pedagogy: results.reduce((sum, r) => 
+          sum + r.all.filter(i => !i.passed && i.category === 'pedagogy').length, 0),
+        accessibility: results.reduce((sum, r) => 
+          sum + r.all.filter(i => !i.passed && i.category === 'accessibility').length, 0)
+      },
+      autoFixableCount: results.reduce((sum, r) => 
+        sum + r.all.filter(i => !i.passed && i.autoFix).length, 0)
+    }
+
+    return summary
+  }
+
   return (
     <Card className="p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h3 className="font-medium">Batch Validation</h3>
-          <p className="text-sm text-muted-foreground">
-            Validating {questions.length} questions
-          </p>
+          <h3 className="text-lg font-semibold">Validation Results</h3>
+          {validationResults.length > 0 && (
+            <p className="text-sm text-gray-500">
+              {validationResults.length} questions processed
+            </p>
+          )}
         </div>
         <Button
           onClick={isValidating ? onRetry : runBatchValidation}

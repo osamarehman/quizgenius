@@ -2,21 +2,37 @@ import { redirect } from 'next/navigation'
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 
+export const dynamic = 'force-dynamic'
+
 export default async function HomePage() {
   try {
     const cookieStore = cookies()
-    const supabase = createServerComponentClient({ cookies: () => cookieStore })
-    const { data: { session } } = await supabase.auth.getSession()
+    const supabase = createServerComponentClient({ 
+      cookies: () => cookieStore 
+    })
 
-    // If user is not authenticated, redirect to auth page
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
     if (!session) {
-      redirect('/auth')
+      return redirect('/auth')
     }
 
-    // If user is authenticated, redirect to dashboard
+    // Check if user is admin for admin dashboard
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single()
+
+    if (profile?.role === 'admin') {
+      return redirect('/admin/dashboard')
+    }
+
     return redirect('/dashboard')
-  } catch (error) {
-    console.error('Auth error:', error)
+  } catch (authError) {
+    console.error('Auth error:', authError)
     return redirect('/auth')
   }
 }

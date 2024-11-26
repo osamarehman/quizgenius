@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -43,13 +43,7 @@ export function QuizLinkingModal({ questionId, onQuestionLinked }: QuizLinkingMo
   const supabase = createClientComponentClient()
   const { toast } = useToast()
 
-  useEffect(() => {
-    if (open) {
-      fetchQuizzes()
-    }
-  }, [open])
-
-  const fetchQuizzes = async () => {
+  const fetchQuizzes = useCallback(async () => {
     try {
       setIsLoading(true)
       const { data, error } = await supabase
@@ -79,7 +73,13 @@ export function QuizLinkingModal({ questionId, onQuestionLinked }: QuizLinkingMo
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [supabase, toast])
+
+  useEffect(() => {
+    if (open) {
+      fetchQuizzes()
+    }
+  }, [open, fetchQuizzes])
 
   const handleLinkToQuiz = async (quizId: string) => {
     try {

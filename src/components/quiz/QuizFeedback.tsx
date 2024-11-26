@@ -2,7 +2,6 @@
 
 import React from 'react'
 import { Card } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
 import { Trophy, Target, Clock, Brain, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'

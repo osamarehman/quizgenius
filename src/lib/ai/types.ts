@@ -22,6 +22,8 @@ export interface Question {
   created_at: string
   quiz_id?: string
   order_number?: number
+  category?: string
+  difficulty?: string
 }
 
 export interface ValidationRule {
@@ -138,4 +140,4 @@ export interface AutoFixSuggestion {
   apply: (text: string) => string
   category: ValidationCategory
   severity: ValidationSeverity
-} 
+}
