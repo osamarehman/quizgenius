@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 
 export async function POST(
   request: NextRequest,
-  context: { params: { quizId: string; questionId: string } }
+  { params }: { params: { quizId: string; questionId: string } }
 ) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
@@ -23,7 +23,7 @@ export async function POST(
       answerText: string
       explanation: string
       isCorrect: boolean
-      orderNumber: number
+      position: number
     }>
 
     // Insert all answers
@@ -31,11 +31,11 @@ export async function POST(
       .from('answers')
       .insert(
         answers.map(answer => ({
-          question_id: context.params.questionId,
+          question_id: params.questionId,
           answer_text: answer.answerText,
           explanation: answer.explanation,
           is_correct: answer.isCorrect,
-          order_number: answer.orderNumber,
+          position: answer.position,
         }))
       )
       .select()
@@ -49,10 +49,10 @@ export async function POST(
 
     return NextResponse.json({ answers: createdAnswers })
   } catch (err) {
-    console.error('Error creating answers:', err);
+    console.error('Error creating answers:', err)
     return NextResponse.json(
-      { error: 'Internal Server Error' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }
-} 
+}

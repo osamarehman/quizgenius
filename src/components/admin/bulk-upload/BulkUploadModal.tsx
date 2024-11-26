@@ -47,7 +47,7 @@ interface Question {
   answer_6?: string
   answer_6_explanation?: string
   question_type?: string
-  order_number?: number
+  position?: number
 }
 
 interface UploadData {
@@ -115,15 +115,15 @@ export function BulkUploadModal({ type, open, onOpenChange }: BulkUploadModalPro
     try {
       const { data: existingQuestions, error: fetchError } = await supabase
         .from('questions')
-        .select('order_number')
+        .select('position')
         .eq('quiz_id', quizId)
-        .order('order_number', { ascending: false })
+        .order('position', { ascending: false })
         .limit(1)
 
       if (fetchError) throw fetchError
 
-      let startOrderNumber = existingQuestions && existingQuestions.length > 0
-        ? existingQuestions[0].order_number + 1
+      let startPosition = existingQuestions && existingQuestions.length > 0
+        ? existingQuestions[0].position + 1
         : 1
 
       for (const question of questions) {
@@ -137,13 +137,13 @@ export function BulkUploadModal({ type, open, onOpenChange }: BulkUploadModalPro
           quiz_id: string
           question_text: string
           question_type: string
-          order_number: number
+          position: number
           question_explanation?: string
         } = {
           quiz_id: quizId,
           question_text: question.question_text,
           question_type: 'mcq',
-          order_number: startOrderNumber++
+          position: startPosition++
         }
 
         // Add optional fields only if they exist
@@ -153,8 +153,8 @@ export function BulkUploadModal({ type, open, onOpenChange }: BulkUploadModalPro
         if (question.question_type) {
           questionData.question_type = question.question_type
         }
-        if (question.order_number) {
-          questionData.order_number = question.order_number
+        if (question.position) {
+          questionData.position = question.position
         }
 
         const { data: insertedQuestion, error: questionError } = await supabase
@@ -183,13 +183,13 @@ export function BulkUploadModal({ type, open, onOpenChange }: BulkUploadModalPro
             const answerData: {
               answer_text: string
               is_correct: boolean
-              order_number: number
+              position: number
               question_id: string
               explanation?: string
             } = {
               answer_text: answer.text,
               is_correct: answer.text === question.correct_answer,
-              order_number: index + 1,
+              position: index + 1,
               question_id: insertedQuestion.id
             }
             

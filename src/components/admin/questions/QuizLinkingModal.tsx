@@ -85,26 +85,26 @@ export function QuizLinkingModal({ questionId, onQuestionLinked }: QuizLinkingMo
     try {
       setIsLoading(true)
 
-      // Get the current max order number for the quiz
-      const { data: currentQuestions, error: orderError } = await supabase
+      // Get the current max position for the quiz
+      const { data: currentQuestions, error: positionError } = await supabase
         .from('questions')
-        .select('order_number')
+        .select('position')
         .eq('quiz_id', quizId)
-        .order('order_number', { ascending: false })
+        .order('position', { ascending: false })
         .limit(1)
 
-      if (orderError) throw orderError
+      if (positionError) throw positionError
 
-      const nextOrderNumber = currentQuestions && currentQuestions.length > 0
-        ? currentQuestions[0].order_number + 1
+      const nextPosition = currentQuestions && currentQuestions.length > 0
+        ? currentQuestions[0].position + 1
         : 1
 
-      // Update the question with quiz_id and order_number
+      // Update the question with quiz_id and position
       const { error: updateError } = await supabase
         .from('questions')
         .update({
           quiz_id: quizId,
-          order_number: nextOrderNumber
+          position: nextPosition
         })
         .eq('id', questionId)
 

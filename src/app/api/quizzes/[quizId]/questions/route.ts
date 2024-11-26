@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 
 export async function POST(
-  req: Request,
+  request: NextRequest,
   { params }: { params: { quizId: string } }
 ) {
   try {
@@ -18,12 +18,12 @@ export async function POST(
       )
     }
 
-    const body = await req.json()
+    const body = await request.json()
     const { 
       questionType,
       questionText,
       questionExplanation,
-      orderNumber,
+      position,
     } = body
 
     // Create question
@@ -34,7 +34,7 @@ export async function POST(
         question_type: questionType,
         question_text: questionText,
         question_explanation: questionExplanation,
-        order_number: orderNumber,
+        position,
       })
       .select()
       .single()
@@ -48,10 +48,10 @@ export async function POST(
 
     return NextResponse.json({ question })
   } catch (err) {
-    console.error('Error creating question:', err);
+    console.error('Error creating question:', err)
     return NextResponse.json(
-      { error: 'Internal Server Error' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }
-} 
+}
