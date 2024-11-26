@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { quizId: string; questionId: string } }
+  context: { params: { quizId: string; questionId: string } }
 ) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
@@ -31,7 +31,7 @@ export async function POST(
       .from('answers')
       .insert(
         answers.map(answer => ({
-          question_id: params.questionId,
+          question_id: context.params.questionId,
           answer_text: answer.answerText,
           explanation: answer.explanation,
           is_correct: answer.isCorrect,
