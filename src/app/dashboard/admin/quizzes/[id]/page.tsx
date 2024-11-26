@@ -169,10 +169,21 @@ export default function QuizDetailPage({ params }: { params: { id: string } }) {
         <h1 className="text-2xl font-bold">Edit Quiz</h1>
         <div className="flex gap-4">
           <Button
-            variant={quiz.is_published ? "outline" : "default"}
+            variant="outline"
             onClick={handlePublishToggle}
+            className={quiz.is_published ? "bg-green-50" : "bg-yellow-50"}
           >
-            {quiz.is_published ? 'Unpublish' : 'Publish'}
+            {quiz.is_published ? (
+              <>
+                <span className="h-2 w-2 rounded-full bg-green-500 mr-2" />
+                Published
+              </>
+            ) : (
+              <>
+                <span className="h-2 w-2 rounded-full bg-yellow-500 mr-2" />
+                Draft
+              </>
+            )}
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
