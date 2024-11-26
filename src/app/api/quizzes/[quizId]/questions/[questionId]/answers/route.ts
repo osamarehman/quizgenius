@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { quizId: string; questionId: string } }
+  { params }: { params: Record<string, string | string[]> }
 ) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
@@ -31,7 +31,7 @@ export async function POST(
       .from('answers')
       .insert(
         answers.map(answer => ({
-          question_id: params.questionId,
+          question_id: params.questionId as string,
           answer_text: answer.answerText,
           explanation: answer.explanation,
           is_correct: answer.isCorrect,
@@ -56,3 +56,4 @@ export async function POST(
     )
   }
 }
+
