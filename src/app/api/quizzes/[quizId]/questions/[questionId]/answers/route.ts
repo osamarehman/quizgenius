@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 
 export async function POST(
-  req: Request,
+  request: NextRequest,
   context: { params: { quizId: string; questionId: string } }
 ) {
   try {
@@ -18,7 +18,7 @@ export async function POST(
       )
     }
 
-    const body = await req.json()
+    const body = await request.json()
     const answers = body.answers as Array<{
       answerText: string
       explanation: string
