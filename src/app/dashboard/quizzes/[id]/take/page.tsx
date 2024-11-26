@@ -16,8 +16,13 @@ export default async function Page({ params }: { params: { id: string } }) {
       .select(`
         *,
         questions:questions(
-          *,
-          answers:answers(*)
+          id,
+          quiz_id,
+          question_text,
+          question_type,
+          question_explanation,
+          answers,
+          order_number
         )
       `)
       .eq('id', await Promise.resolve(params.id))

@@ -1,3 +1,5 @@
+'use client'
+
 import { useState, useEffect, useCallback } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -34,13 +36,15 @@ export function TakeQuizClient({ quiz, questions }: { quiz: Quiz, questions: Que
       }
 
       // Calculate score
-      let correctAnswers = 0
+      let correctAnswers = 0;
       questions.forEach(question => {
-        if (selectedAnswers[question.id] === question.correct_answer_id) {
-          correctAnswers++
+        const selectedAnswerIndex = selectedAnswers[question.id];
+        const selectedAnswer = question.answers[parseInt(selectedAnswerIndex)];
+        if (selectedAnswer && selectedAnswer.is_correct) {
+          correctAnswers++;
         }
-      })
-      const score = Math.round((correctAnswers / questions.length) * 100)
+      });
+      const score = Math.round((correctAnswers / questions.length) * 100);
 
       // Save attempt
       const { error } = await supabase

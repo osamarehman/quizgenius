@@ -183,3 +183,19 @@ export interface APIResponse<T> {
     details?: unknown
   }
 }
+
+export interface JsonbQuestion {
+  id: string;
+  quiz_id: string;
+  question_text: string;
+  question_type: string;
+  question_explanation?: string;
+  answers: JsonbAnswer[];
+  order_number: number;
+}
+
+export interface JsonbAnswer {
+  text: string;
+  is_correct: boolean;
+  explanation?: string;
+}

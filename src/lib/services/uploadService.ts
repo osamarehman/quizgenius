@@ -21,19 +21,14 @@ interface QuestionData {
   question_text: string;
   quiz_id: string;
   order_number: number;
-  answer_1: string;
-  answer_2: string;
-  answer_3: string;
-  answer_4: string;
-  correct_answer: string;
-  [key: string]: string | number;
+  question_type: string;
+  question_explanation?: string;
+  answers: Answer[];
 }
 
 interface Answer {
-  question_id: string;
-  answer_text: string;
+  text: string;
   is_correct: boolean;
-  order_number: number;
   explanation?: string;
 }
 
@@ -186,11 +181,8 @@ export const uploadService = {
             question_text: '',
             quiz_id: quizId,
             order_number: currentOrderNumber++,
-            answer_1: '',
-            answer_2: '',
-            answer_3: '',
-            answer_4: '',
-            correct_answer: '',
+            question_type: '',
+            answers: [],
           };
 
           // Map fields according to the provided mapping
@@ -199,58 +191,73 @@ export const uploadService = {
               continue; // Skip auto-generated order number
             }
 
-            if (row[csvField]) {
+            // Only map fields that are part of the QuestionData type
+            if (field in questionData && row[csvField]) {
               questionData[field] = row[csvField];
             }
           }
 
-          // Validate required fields
-          if (!questionData.question_text || !questionData.quiz_id) {
-            throw new Error('Missing required fields');
-          }
-
-          // Insert question
-          const { data: question, error: questionError } = await supabase
-            .from('questions')
-            .insert([questionData])
-            .select()
-            .single();
-
-          if (questionError || !question) {
-            throw questionError || new Error('Failed to insert question');
+          // Set default question type if not provided
+          if (!questionData.question_type) {
+            questionData.question_type = 'MULTIPLE_CHOICE';
           }
 
           // Process answers
           const answers: Answer[] = [];
+          let hasCorrectAnswer = false;
+
           for (let i = 1; i <= 6; i++) {
             const answerField = `answer_${i}`;
             const explanationField = `answer_${i}_explanation`;
 
             if (mapping[answerField] && row[mapping[answerField]]) {
               const answer: Answer = {
-                question_id: question.id,
-                answer_text: row[mapping[answerField]],
-                is_correct: mapping.correct_answer && row[mapping.correct_answer] === row[mapping[answerField]],
-                order_number: i,
+                text: row[mapping[answerField]],
+                is_correct: mapping.correct_answer && 
+                  (row[mapping.correct_answer] === `answer_${i}` || 
+                   row[mapping.correct_answer] === answerField ||
+                   row[mapping.correct_answer] === row[mapping[answerField]]),
               };
 
-              // Add explanation if the field exists and isn't skipped
               if (mapping[explanationField] && row[mapping[explanationField]]) {
                 answer.explanation = row[mapping[explanationField]];
+              }
+
+              if (answer.is_correct) {
+                hasCorrectAnswer = true;
               }
 
               answers.push(answer);
             }
           }
 
-          // Ensure at least one answer exists
-          if (answers.length === 0) {
-            throw new Error('At least one answer is required');
+          if (!hasCorrectAnswer) {
+            throw new Error('At least one answer must be marked as correct');
           }
 
-          // Insert answers
-          const { error: answersError } = await supabase.from('answers').insert(answers);
-          if (answersError) throw answersError;
+          // Add answers to question data
+          questionData.answers = answers;
+
+          // Only send the fields that exist in the database
+          const dbQuestionData = {
+            question_text: questionData.question_text,
+            quiz_id: questionData.quiz_id,
+            order_number: questionData.order_number,
+            question_type: questionData.question_type,
+            question_explanation: questionData.question_explanation,
+            answers: questionData.answers
+          };
+
+          // Insert question with answers
+          const { error: questionError } = await supabase
+            .from('questions')
+            .insert([dbQuestionData])
+            .select()
+            .single();
+
+          if (questionError) {
+            throw questionError;
+          }
 
           successCount++;
         } catch (error) {
