@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card"
 import { LoadingSpinner } from '@/components/ui/loading'
 import { toast } from '@/hooks/use-toast'
 import { EditQuestionDialog } from '@/components/questions/EditQuestionDialog'
-import { QuestionBankDialog } from '@/components/components/questions/QuestionBankDialog'
+import { QuestionBankDialog } from '@/components/questions/QuestionBankDialog'
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
 import { GripVertical, Pencil, Plus, Trash } from 'lucide-react'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
